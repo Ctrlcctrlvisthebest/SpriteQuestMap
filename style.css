@@ -28,8 +28,8 @@ input, select { color: #e8edf4; background: #111821; border: 1px solid var(--lin
 .button-row { display: flex; align-items: center; gap: 10px; }
 .game-bar { max-width: 1548px; margin: auto; padding: 15px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
 #game-map-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#game-shell { display: flex; justify-content: center; align-items: center; background: #000; }
-#game-shell canvas { display: block; width: min(100vw, calc((100dvh - 181px - var(--feedback-space)) * 1.875), 1500px) !important; height: auto !important; }
+#game-shell { position: relative; display: flex; justify-content: center; align-items: center; background: #000; }
+#game-shell canvas { display: block; width: min(100%, calc(100dvh * 1.875), 1500px) !important; height: auto !important; }
 .game-help { text-align: center; color: var(--muted); font-size: 12px; margin: 18px 12px; line-height: 1.8; }
 .game-help span { margin-left: 22px; }
 #editor-view { padding: 24px 28px 16px; max-width: 1800px; margin: auto; }
@@ -91,3 +91,11 @@ input[type="checkbox"] { accent-color: var(--accent); }
 @media (max-width: 640px), (hover: none) { .feedback-tooltip { display: none; } }
 @media (max-width: 640px) { .feedback-dock { padding-right: max(16px, env(safe-area-inset-right, 0px)); } .companion-link { padding: 10px 8px; font-size: 12px; } }
 @media (prefers-reduced-motion: reduce) { .feedback-button, .feedback-tooltip { transition: none; } }
+
+/* Fullscreen scales the existing 1500 × 800 game without changing its world. */
+#game-shell.is-expanded { position: fixed; inset: 0; z-index: 50; width: 100vw; height: 100dvh; margin: 0; padding: 0; overflow: hidden; background: #000; }
+#game-shell.is-expanded canvas { width: min(100vw, calc(100dvh * 1.875)) !important; height: auto !important; max-height: 100dvh; }
+#game-shell:focus { outline: none; }
+.fullscreen-exit { position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 1; min-height: 44px; padding: 8px 12px; color: #e8edf4; background: #18212de6; border-color: #526078; font-size: 12px; }
+#game-fullscreen { min-height: 36px; }
+@media (max-width: 640px) { .game-bar .button-row { flex-wrap: wrap; gap: 8px; } #game-shell canvas { width: min(100%, calc(100dvh * 1.875)) !important; } #game-shell.is-expanded canvas { width: min(100vw, calc(100dvh * 1.875)) !important; } }

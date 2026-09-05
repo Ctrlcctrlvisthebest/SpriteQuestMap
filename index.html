@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="SpriteQuest — 像素冒险与地图编辑器。绘制地形、导入 CSV，游玩自己的关卡。" />
     <title>SpriteQuest · 地图工坊</title>
-    <link rel="stylesheet" href="style.css?v=5" />
+    <link rel="stylesheet" href="style.css?v=6" />
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/p5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/addons/p5.sound.min.js"></script>
   </head>
@@ -17,8 +17,8 @@
     </header>
     <div class="site-content">
     <section id="game-view" aria-label="游戏">
-      <div class="game-bar"><span id="game-map-name">经典冒险 · 4 个关卡</span><div class="button-row"><button id="back-editor" class="button small" hidden>返回编辑</button><button id="classic-game" class="button small" hidden>标准关卡</button><button id="restart-game" class="button small" disabled>开始 / 重新开始</button></div></div>
-      <main id="game-shell" aria-label="SpriteQuest game canvas"></main>
+      <div class="game-bar"><span id="game-map-name">经典冒险 · 4 个关卡</span><div class="button-row"><button id="back-editor" class="button small" hidden>返回编辑</button><button id="classic-game" class="button small" hidden>标准关卡</button><button id="restart-game" class="button small" disabled>开始 / 重新开始</button><button id="game-fullscreen" class="button small" aria-controls="game-shell" aria-pressed="false">⛶ 全屏</button></div></div>
+      <main id="game-shell" aria-label="SpriteQuest game canvas" tabindex="-1"><button id="exit-fullscreen" class="button fullscreen-exit" hidden>退出全屏 · Esc</button></main>
       <p class="game-help">← → 移动 <span>↑ 跳跃</span><span>X 发射水弹</span><span>Z 冲刺</span><span>空格 重新开始</span><span>R 主菜单</span></p>
     </section>
     <section id="editor-view" aria-label="地图编辑器" hidden>
@@ -62,5 +62,6 @@
     <script src="map-format.js?v=1"></script>
     <script src="sketch.js?v=7"></script>
     <script src="editor.js?v=2"></script>
+    <script src="fullscreen.js?v=1"></script>
   </body>
 </html>

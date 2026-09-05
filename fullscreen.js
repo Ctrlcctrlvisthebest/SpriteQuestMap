@@ -17,7 +17,7 @@
     const active = isNativeFullscreen() || windowFullscreen;
     shell.classList.toggle("is-expanded", active);
     exitButton.hidden = !active;
-    exitButton.textContent = windowFullscreen ? "退出窗口全屏 · Esc" : "退出全屏 · Esc";
+    exitButton.textContent = I18n.t(windowFullscreen ? "fullscreen.windowExit" : "fullscreen.exit");
     enterButton.setAttribute("aria-pressed", String(active));
     surroundingUI.forEach((element, index) => { element.inert = active || originalInert[index]; });
     // Resizing the existing canvas preserves the level, score, and character position.
@@ -60,6 +60,7 @@
     }
   }
 
+  document.addEventListener("languagechange", () => { exitButton.textContent = I18n.t(windowFullscreen ? "fullscreen.windowExit" : "fullscreen.exit"); });
   enterButton.addEventListener("click", enterFullscreen);
   exitButton.addEventListener("click", exitFullscreen);
   document.addEventListener("fullscreenchange", syncFullscreen);

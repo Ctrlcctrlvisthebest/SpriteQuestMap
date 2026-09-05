@@ -100,3 +100,9 @@ node --test tests/*.test.js
 点击游戏上方的 **⛶ 全屏**，按原来的 **1500:800** 比例放大到整个屏幕。全屏模式隐藏外围导航、工具栏和反馈栏，保留右上角的 **退出全屏** 按钮；也可按 **Esc** 退出。切换不会重新开始关卡或清空进度。普通模式也恢复较大的画布显示，不再按工具栏高度缩小。
 
 不支持或未允许系统全屏的浏览器会使用窗口全屏，按钮显示 **退出窗口全屏**。竖屏和横屏都保持比例，剩余区域留黑边。
+
+## Languages / 语言
+
+The interface defaults to **English**. Use the **English / 中文** selector in the bottom-left corner to switch instantly. The choice is saved on this browser and shared between the two GitHub Pages sites. Menus, the map editor, validation messages, game HUD, end screens, and fullscreen controls follow the selected language. Changing language preserves the map, undo history, and current game. Map names and CSV tile codes are never translated.
+
+界面默认英文，可通过左下角 **English / 中文** 切换并记住选择。切换不会重置地图或游戏进度；地图名称和 CSV 编码保持不变。

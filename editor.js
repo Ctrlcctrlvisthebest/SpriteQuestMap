@@ -4,15 +4,22 @@
   const $ = id => document.getElementById(id);
   const canvas = $("editor-canvas"), ctx = canvas.getContext("2d");
   const viewport = $("map-viewport"), nameInput = $("map-name");
+  nameInput.value = I18n.t("map.defaultName");
+  let draftStatus = "draft.local", activeMessage = null;
   const DRAFT_KEY = "spritequest-map-draft-v1";
   let grid = SpriteMap.createMap(), selected = 2, tool = "paint", tileSize = 32;
   let hover = null, stroke = null, lastCell = null, drawingPointer = null, strokeCode = null, strokeIsFill = false;
   let undo = [], redo = [], importMode = "edit", renderPending = false, messageTimer, pausedAt = null;
   const sprites = {};
 
+  function renderMessage() {
+    if (activeMessage) $("app-message").querySelector("span").textContent = typeof activeMessage === "string" ? I18n.t(activeMessage) : I18n.errorText(activeMessage);
+  }
+  function setDraftStatus(key) { draftStatus = key; $("draft-status").textContent = I18n.t(key); }
   function message(text, error = false) {
     const element = $("app-message");
-    element.querySelector("span").textContent = text;
+    activeMessage = text;
+    renderMessage();
     element.classList.toggle("error", error);
     element.hidden = false;
     clearTimeout(messageTimer);
@@ -24,15 +31,15 @@
   function persist() {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({ csv: SpriteMap.toCSV(grid), name: nameInput.value }));
-      $("draft-status").textContent = "草稿已保存到本机";
+      setDraftStatus("draft.saved");
     } catch {
-      $("draft-status").textContent = "无法保存草稿，请导出 CSV";
+      setDraftStatus("draft.unavailable");
     }
   }
   function updateControls() {
     $("editor-undo").disabled = !undo.length;
     $("editor-redo").disabled = !redo.length;
-    $("map-size").textContent = `${grid[0].length} × ${grid.length} 格`;
+    $("map-size").textContent = I18n.t("editor.size", { cols: grid[0].length, rows: grid.length });
   }
   function commit(before) {
     if (before.name === nameInput.value && SpriteMap.toCSV(before.grid) === SpriteMap.toCSV(grid)) return;
@@ -83,28 +90,31 @@
       button.classList.toggle("active", Number(button.dataset.tile) === code);
       button.setAttribute("aria-pressed", String(Number(button.dataset.tile) === code));
     });
+    $("selected-name").removeAttribute("data-i18n");
+    $("selected-description").removeAttribute("data-i18n");
     $("selected-name").textContent = SpriteMap.byCode[code].name;
     $("selected-description").textContent = SpriteMap.byCode[code].description;
     if (tool === "erase" || code === 10) setTool("paint");
     requestRender();
   }
-  for (const group of ["地形", "物件", "角色"]) {
+  for (const group of ["terrain", "objects", "characters"]) {
     const wrapper = document.createElement("div");
-    const label = document.createElement("div"); label.className = "palette-label"; label.textContent = group;
+    const label = document.createElement("div"); label.className = "palette-label"; label.dataset.i18n = `group.${group}`; label.textContent = I18n.t(`group.${group}`);
     const palette = document.createElement("div"); palette.className = "palette-grid";
     for (const tile of SpriteMap.tiles.filter(item => item.group === group)) {
       const button = document.createElement("button");
       button.className = "tile-button"; button.dataset.tile = tile.code;
+      button.dataset.i18nTitle = `tile.${tile.code}.description`; button.dataset.i18nAriaLabel = `tile.${tile.code}.name`;
       button.title = tile.description; button.setAttribute("aria-label", tile.name);
       if (tile.image) {
         const img = new Image(); img.src = `assets/${tile.image}.png`; img.alt = "";
         img.onload = requestRender;
-        img.onerror = () => message(`无法加载${tile.name}贴图，请刷新页面。`, true);
+        img.onerror = () => message("error.texture", true);
         sprites[tile.code] = img; button.append(img);
       } else {
         const empty = document.createElement("span"); empty.className = "empty-tile"; button.append(empty);
       }
-      const text = document.createElement("span"); text.textContent = tile.name; button.append(text);
+      const text = document.createElement("span"); text.dataset.i18n = `tile.${tile.code}.name`; text.textContent = tile.name; button.append(text);
       button.onclick = () => selectTile(tile.code);
       palette.append(button);
     }
@@ -156,7 +166,7 @@
   }
   function setHover(cell) {
     hover = cell;
-    $("cursor-position").textContent = cell ? `第 ${cell.col + 1} 列 · 第 ${cell.row + 1} 行 · ${SpriteMap.byCode[grid[cell.row][cell.col]].name}` : "点击或拖动绘制 · 右键擦除 · 滚动查看地图";
+    $("cursor-position").textContent = cell ? I18n.t("editor.cursor", { col: cell.col + 1, row: cell.row + 1, tile: SpriteMap.byCode[grid[cell.row][cell.col]].name }) : I18n.t("editor.paintHelp");
     requestRender();
   }
   function put(cell, code) {
@@ -216,18 +226,18 @@
   new ResizeObserver(requestRender).observe(viewport);
   nameInput.addEventListener("input", persist);
   $("new-map").onclick = () => {
-    try { replaceMap(SpriteMap.createMap(Number($("map-cols").value), Number($("map-rows").value)), "我的冒险"); message("新地图已创建；可以撤销回到上一张地图。"); }
-    catch (error) { message(error.message, true); }
+    try { replaceMap(SpriteMap.createMap(Number($("map-cols").value), Number($("map-rows").value)), I18n.t("map.defaultName")); message("message.created"); }
+    catch (error) { message(error, true); }
   };
   $("load-template").onclick = async () => {
     const button = $("load-template"), number = $("map-template").value;
     button.disabled = true;
     try {
       const response = await fetch(`assets/map${number}.csv`);
-      if (!response.ok) throw new Error("无法载入内置地图，请稍后再试。");
-      replaceMap(SpriteMap.parseCSV(await response.text()), `关卡 ${number} · 我的改编`);
-      message("内置地图已载入，可以直接修改。");
-    } catch (error) { message(error.message, true); }
+      if (!response.ok) throw I18n.error("error.template");
+      replaceMap(SpriteMap.parseCSV(await response.text()), I18n.t("map.templateName", { number }));
+      message("message.template");
+    } catch (error) { message(error, true); }
     finally { button.disabled = false; }
   };
 
@@ -245,19 +255,19 @@
     if (editing) requestRender();
   }
   function updateGameBar() {
-    $("game-map-name").textContent = customMap ? `自定义地图 · ${customMap.name}` : "经典冒险 · 4 个关卡";
+    $("game-map-name").textContent = customMap ? I18n.t("game.custom", { name: customMap.name }) : I18n.t("game.classic");
     $("classic-game").hidden = !customMap; $("back-editor").hidden = !customMap;
   }
   function playMap() {
     finishStroke();
-    if (!gameReady) { message("游戏素材正在加载，请稍候再试玩。", true); return; }
+    if (!gameReady) { message("error.loading", true); return; }
     try {
       const spawn = SpriteMap.validatePlayable(grid);
       showView(false);
-      customMap = { lines: SpriteMap.toCSV(grid).trimEnd().split("\n"), spawn, name: nameInput.value.trim() || "我的冒险" };
+      customMap = { lines: SpriteMap.toCSV(grid).trimEnd().split("\n"), spawn, name: nameInput.value.trim() || I18n.t("map.defaultName") };
       updateGameBar(); startNewGame();
       userStartAudio();
-    } catch (error) { message(error.message, true); }
+    } catch (error) { message(error, true); }
   }
   $("nav-editor").onclick = () => showView(true);
   $("nav-game").onclick = () => showView(false);
@@ -276,24 +286,24 @@
     const file = event.target.files[0], mode = importMode;
     if (!file) return;
     try {
-      if (file.size > SpriteMap.MAX_FILE_BYTES) throw new Error("CSV 文件不能超过 1 MB。");
+      if (file.size > SpriteMap.MAX_FILE_BYTES) throw I18n.error("error.fileSize");
       const next = SpriteMap.parseCSV(await file.text());
       // Validate before replacing the current draft, so failed imports leave it intact.
       if (mode === "play") SpriteMap.validatePlayable(next);
       replaceMap(next, file.name.replace(/\.csv$/i, "").slice(0, 60));
       if (mode === "play" && gameReady) playMap();
-      else { showView(true); message("地图已导入。可继续编辑，或点击「试玩地图」。"); }
-    } catch (error) { message(error.message, true); }
+      else { showView(true); message("message.imported"); }
+    } catch (error) { message(error, true); }
     finally { event.target.value = ""; }
   });
   function exportCSV() {
     finishStroke();
-    const filename = (nameInput.value.trim() || "我的冒险").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\.csv$/i, "");
+    const filename = (nameInput.value.trim() || I18n.t("map.defaultName")).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\.csv$/i, "");
     const url = URL.createObjectURL(new Blob([SpriteMap.toCSV(grid)], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = `${filename}.csv`;
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    persist(); message("CSV 已导出，可通过「导入 CSV 游玩」载入。");
+    persist(); message("message.exported");
   }
   $("editor-export").onclick = exportCSV;
 
@@ -332,11 +342,17 @@
   try {
     const draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
     if (draft && typeof draft.csv === "string") {
-      grid = SpriteMap.parseCSV(draft.csv); nameInput.value = String(draft.name || "我的冒险").slice(0, 60);
+      grid = SpriteMap.parseCSV(draft.csv); nameInput.value = String(draft.name || I18n.t("map.defaultName")).slice(0, 60);
       $("map-cols").value = grid[0].length; $("map-rows").value = grid.length;
-      $("draft-status").textContent = "已恢复本机草稿";
+      setDraftStatus("draft.restored");
     }
-  } catch { $("draft-status").textContent = "请导出 CSV 保存地图"; }
+  } catch { setDraftStatus("draft.export"); }
+  document.addEventListener("languagechange", () => {
+    // Update labels only: keep the draft, selection, undo history and current run.
+    $("selected-name").textContent = SpriteMap.byCode[selected].name;
+    $("selected-description").textContent = SpriteMap.byCode[selected].description;
+    updateControls(); updateGameBar(); setHover(hover); setDraftStatus(draftStatus); renderMessage();
+  });
   selectTile(selected); updateControls(); requestRender();
   if (document.body.dataset.startView === "editor") showView(true);
 })();

@@ -2,36 +2,40 @@
 
 // Shared map format. Codes 0–9 are compatible with the original CSV files.
 const SpriteMap = (() => {
+  const locale = typeof module !== "undefined" && module.exports ? require("./i18n.js") : I18n;
   const MAX_COLS = 120, MAX_ROWS = 80, MAX_FILE_BYTES = 1024 * 1024;
   const tiles = [
-    { code: 0, name: "空白", group: "地形", image: null, description: "清除这一格的地形或物件。" },
-    { code: 1, name: "红砖", group: "地形", image: "red_brick", solid: true, description: "可以站立的红砖平台。" },
-    { code: 2, name: "雪地", group: "地形", image: "snow", solid: true, description: "可以站立的积雪地面。" },
-    { code: 3, name: "土砖", group: "地形", image: "brown_brick", solid: true, description: "可以站立的泥土砖块。" },
-    { code: 4, name: "木箱", group: "地形", image: "crate", solid: true, description: "可以站立或用来垫高的木箱。" },
-    { code: 8, name: "水块", group: "地形", image: "water", solid: true, description: "沿用游戏规则：水块是可以站立的平台。" },
-    { code: 5, name: "金币", group: "物件", image: "gold1", description: "拾取后获得 1 枚金币。" },
-    { code: 6, name: "终点宝石", group: "物件", image: "gem1", description: "碰到宝石即可完成自定义关卡。" },
-    { code: 7, name: "岩浆", group: "物件", image: "magma", description: "碰到会扣除 10 枚金币并返回出生点。" },
-    { code: 10, name: "玩家起点", group: "角色", image: "mageR", description: "点击放置出生点；再次放置会移动原来的起点。" },
-    { code: 9, name: "敌方法师", group: "角色", image: "wizardR", description: "自定义地图中，每个标记生成一名敌人。" }
-  ];
+    { code: 0, group: "terrain", image: null },
+    { code: 1, group: "terrain", image: "red_brick", solid: true },
+    { code: 2, group: "terrain", image: "snow", solid: true },
+    { code: 3, group: "terrain", image: "brown_brick", solid: true },
+    { code: 4, group: "terrain", image: "crate", solid: true },
+    { code: 8, group: "terrain", image: "water", solid: true },
+    { code: 5, group: "objects", image: "gold1" },
+    { code: 6, group: "objects", image: "gem1" },
+    { code: 7, group: "objects", image: "magma" },
+    { code: 10, group: "characters", image: "mageR" },
+    { code: 9, group: "characters", image: "wizardR" }
+  ].map(tile => ({ ...tile,
+    get name() { return locale.t(`tile.${tile.code}.name`); },
+    get description() { return locale.t(`tile.${tile.code}.description`); }
+  }));
   const byCode = Object.fromEntries(tiles.map(tile => [tile.code, tile]));
   function parseCSV(text) {
-    if (typeof text !== "string" || text.length > MAX_FILE_BYTES) throw new Error("CSV 文件不能超过 1 MB。");
+    if (typeof text !== "string" || text.length > MAX_FILE_BYTES) throw locale.error("error.fileSize");
     const lines = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n");
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-    if (!lines.length) throw new Error("CSV 文件是空的，请选择一张地图。");
-    if (lines.length > MAX_ROWS) throw new Error(`地图最多支持 ${MAX_ROWS} 行。`);
+    if (!lines.length) throw locale.error("error.emptyFile");
+    if (lines.length > MAX_ROWS) throw locale.error("error.maxRows", { max: MAX_ROWS });
     const grid = lines.map((line, row) => {
-      if (!line.trim()) throw new Error(`第 ${row + 1} 行为空。请用 0 表示空白格。`);
+      if (!line.trim()) throw locale.error("error.emptyRow", { row: row + 1 });
       const cells = line.split(",");
-      if (cells.length > MAX_COLS) throw new Error(`地图最多支持 ${MAX_COLS} 列（第 ${row + 1} 行超出）。`);
+      if (cells.length > MAX_COLS) throw locale.error("error.maxCols", { max: MAX_COLS, row: row + 1 });
       return cells.map((cell, col) => {
         let value = cell.trim();
         if (/^"\s*\d*\s*"$/.test(value)) value = value.slice(1, -1).trim();
         if (value === "") return 0;
-        if (!/^\d+$/.test(value) || !byCode[Number(value)]) throw new Error(`第 ${row + 1} 行、第 ${col + 1} 列不是有效地图格（允许 0–10）。`);
+        if (!/^\d+$/.test(value) || !byCode[Number(value)]) throw locale.error("error.invalidCell", { row: row + 1, col: col + 1 });
         return Number(value);
       });
     });
@@ -47,7 +51,7 @@ const SpriteMap = (() => {
   }
   function playerSpawn(grid) {
     const explicit = positions(grid, 10);
-    if (explicit.length > 1) throw new Error("地图里有多个玩家起点，请只保留一个。");
+    if (explicit.length > 1) throw locale.error("error.multipleStarts");
     if (explicit.length) return explicit[0];
     if (grid[8]?.[5] === 0) return { col: 5, row: 8 };
     for (let row = grid.length - 2; row >= 0; row--) {
@@ -56,15 +60,15 @@ const SpriteMap = (() => {
       }
     }
     const empty = positions(grid, 0)[0];
-    if (!empty) throw new Error("地图没有安全的出生位置，请放置一个玩家起点。");
+    if (!empty) throw locale.error("error.noSpawn");
     return empty;
   }
   function validatePlayable(grid) {
-    if (!positions(grid, 6).length) throw new Error("还缺少终点宝石。请在地图上放置宝石后再试玩。");
+    if (!positions(grid, 6).length) throw locale.error("error.noExit");
     return playerSpawn(grid);
   }
   function createMap(cols = 40, rows = 18) {
-    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 8 || rows < 6 || cols > MAX_COLS || rows > MAX_ROWS) throw new Error(`新地图宽度需为 8–${MAX_COLS} 格，高度需为 6–${MAX_ROWS} 格。`);
+    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 8 || rows < 6 || cols > MAX_COLS || rows > MAX_ROWS) throw locale.error("error.dimensions", { cols: MAX_COLS, rows: MAX_ROWS });
     const grid = Array.from({ length: rows }, () => Array(cols).fill(0));
     grid[rows - 1].fill(3);
     grid[rows - 2].fill(2);

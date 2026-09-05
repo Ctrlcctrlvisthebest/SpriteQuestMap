@@ -35,7 +35,7 @@ function setup(mode = "native") {
     document.fullscreenElement = null;
     document.listeners.fullscreenchange();
   };
-  vm.runInNewContext(source, { document, clearInputState() {} });
+  vm.runInNewContext(source, { document, I18n: require("../i18n.js"), clearInputState() {} });
   return { shell, enter, exit, background, document, requests: () => requests };
 }
 
@@ -66,7 +66,7 @@ for (const mode of ["unsupported", "rejected"]) test(`${mode} native fullscreen 
   const ui = setup(mode);
   await ui.enter.listeners.click();
   assert.equal(ui.shell.classList.contains("is-expanded"), true);
-  assert.match(ui.exit.textContent, /窗口全屏/);
+  assert.match(ui.exit.textContent, /window fullscreen/);
   let prevented = false;
   ui.document.listeners.keydown({ key: "Escape", preventDefault() { prevented = true; } });
   assert.equal(prevented, true);

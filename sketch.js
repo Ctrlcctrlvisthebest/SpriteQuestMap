@@ -109,7 +109,7 @@ function getRank() {
 }
 
 function getDifficultyName() {
-  return selectedDifficulty === Difficulty.EASY ? "Easy" : selectedDifficulty === Difficulty.HARD ? "Hard" : "Normal";
+  return I18n.t(`difficulty.${selectedDifficulty.toLowerCase()}`);
 }
 
 function getEnemyCount() {
@@ -158,13 +158,13 @@ function drawScore() {
   fill(0);
   textAlign(LEFT, BASELINE);
   textSize(24);
-  text(`Score:${coinScore}`, 20, 30);
-  text(`Rank:${getRank()}`, 20, 60);
-  text(`Difficulty:${getDifficultyName()}`, 20, 90);
-  text(customMap ? "Level:Custom" : `Level:${mapNumber}`, 20, 120);
-  text(`Player Level:${playerLevel}`, 20, 150);
-  text(`XP:${experience}/${getExperienceToNextLevel()}`, 20, 180);
-  if (endlessMode) text("Mode:Endless", 20, 210);
+  text(I18n.t("hud.score", { value: coinScore }), 20, 30);
+  text(I18n.t("hud.rank", { value: getRank() }), 20, 60);
+  text(I18n.t("hud.difficulty", { value: getDifficultyName() }), 20, 90);
+  text(customMap ? I18n.t("hud.custom") : I18n.t("hud.level", { value: mapNumber }), 20, 120);
+  text(I18n.t("hud.playerLevel", { value: playerLevel }), 20, 150);
+  text(I18n.t("hud.xp", { value: experience, next: getExperienceToNextLevel() }), 20, 180);
+  if (endlessMode) text(I18n.t("hud.endless"), 20, 210);
   mage.drawCooldownTime();
   pop();
 }
@@ -263,15 +263,15 @@ function drawIntroScreen() {
   textAlign(CENTER, BASELINE);
   fill(255);
   textSize(70);
-  text(customMap ? "CUSTOM QUEST" : "SPRITE QUEST", width / 2, 300);
+  text(customMap ? I18n.t("screen.customTitle") : "SPRITE QUEST", width / 2, 300);
   fill(125);
   textSize(30);
-  text("Arrow to Move, X shoot water, space restart, z sprint, r reselect", width / 2, 380);
-  text("Press 1 for Easy, 2 for Normal, 3 for Hard", width / 2, 430);
-  text(`Selected Difficulty: ${getDifficultyName()}`, width / 2, 480);
+  text(I18n.t("screen.controls"), width / 2, 380);
+  text(I18n.t("screen.difficulty"), width / 2, 430);
+  text(I18n.t("screen.selected", { value: getDifficultyName() }), width / 2, 480);
   fill(255);
   textSize(50);
-  text("Press [SPACEBAR] to play", width / 2, 560);
+  text(I18n.t("screen.start"), width / 2, 560);
   timerStart = millis();
   if (resetMageRequested) startNewGame();
 }
@@ -283,7 +283,7 @@ function drawLevelScreen() {
   rect(200, 500, 600, 20);
   fill(255);
   textSize(40);
-  text(customMap ? "Custom map" : `Level${mapNumber}`, 650, 300);
+  text(customMap ? I18n.t("screen.loadingCustom") : I18n.t("screen.loadingLevel", { value: mapNumber }), 650, 300);
   rect(500, 400, 600 * percent, 20);
   fill(255);
   textSize(40);
@@ -292,15 +292,15 @@ function drawLevelScreen() {
 }
 
 function drawVictoryScreen() {
-  drawEndScreen("You win!", `You earn ${coinScore} coin`, "Press [SPACEBAR]", 500);
+  drawEndScreen(I18n.t("screen.win"), I18n.t("screen.earned", { value: coinScore }), I18n.t("screen.restart"), 500);
   fill(255);
   textSize(38);
-  if (!customMap) text("Press [E] for Endless Mode", 460, 650);
-  else text("Map complete! Return to the editor to keep building.", 280, 650);
+  if (!customMap) text(I18n.t("screen.endless"), 460, 650);
+  else text(I18n.t("screen.mapComplete"), 280, 650);
 }
 
 function drawLoseScreen() {
-  drawEndScreen("You Lose!", "You lost all coin", "Press [SPACEBAR] play again", 450);
+  drawEndScreen(I18n.t("screen.lose"), I18n.t("screen.noCoins"), I18n.t("screen.restart"), 450);
 }
 
 function drawEndScreen(title, subtitle, prompt, promptX) {
@@ -311,8 +311,8 @@ function drawEndScreen(title, subtitle, prompt, promptX) {
   fill(125);
   textSize(30);
   text(subtitle, 550, 400);
-  text("Choose difficulty: 1 Easy, 2 Normal, 3 Hard", 420, 460);
-  text(`Selected Difficulty: ${getDifficultyName()}`, 500, 500);
+  text(I18n.t("screen.chooseDifficulty"), 420, 460);
+  text(I18n.t("screen.selected", { value: getDifficultyName() }), 500, 500);
   fill(255);
   textSize(50);
   text(prompt, promptX, 570);
@@ -530,8 +530,8 @@ class Mage extends Character {
     const shotCooldown = getPlayerCooldown(BASE_SHOT_COOLDOWN);
     const sprintCooldown = getPlayerCooldown(BASE_SPRINT_COOLDOWN);
     const items = [
-      { x: width - 110, label: "X", name: "shot", color: [40, 120, 255], percent: constrain((frameCount - this.lastShotFrame) / shotCooldown, 0, 1) },
-      { x: width - 50, label: "Z", name: "sprint", color: [255, 150, 40], percent: constrain((frameCount - this.lastSprintFrame) / sprintCooldown, 0, 1) }
+      { x: width - 110, label: "X", name: I18n.t("hud.shot"), color: [40, 120, 255], percent: constrain((frameCount - this.lastShotFrame) / shotCooldown, 0, 1) },
+      { x: width - 50, label: "Z", name: I18n.t("hud.sprint"), color: [255, 150, 40], percent: constrain((frameCount - this.lastSprintFrame) / sprintCooldown, 0, 1) }
     ];
     for (const item of items) {
       stroke(210); strokeWeight(3); fill(235); circle(item.x, height - 50, 42);

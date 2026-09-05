@@ -1,67 +1,69 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="SpriteQuest — 像素冒险与地图编辑器。绘制地形、导入 CSV，游玩自己的关卡。" />
-    <title>SpriteQuest · 地图工坊</title>
-    <link rel="stylesheet" href="style.css?v=6" />
+    <meta name="description" data-i18n-content="page.description" content="SpriteQuest — a pixel adventure and map editor. Paint terrain, import CSV maps, and play your own levels." />
+    <title data-i18n="page.title">SpriteQuest · Map Workshop</title>
+    <link rel="stylesheet" href="style.css?v=7" />
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/p5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/addons/p5.sound.min.js"></script>
   </head>
   <body data-start-view="editor">
     <header class="app-header">
-      <a class="brand" href="./" aria-label="SpriteQuest 首页"><img src="assets/mageR.png" alt="" />SPRITE<span>QUEST</span></a>
-      <nav aria-label="主导航"><button id="nav-game" class="nav-button active" aria-current="page">游玩</button><button id="nav-editor" class="nav-button">地图编辑器</button><a id="companion-site" class="nav-button companion-link" href="https://ctrlcctrlvisthebest.github.io/SpriteQuest/" target="_blank" rel="noopener noreferrer">返回 SpriteQuest ↗</a></nav>
-      <button id="import-play" class="button subtle">导入 CSV 游玩 <span aria-hidden="true">↗</span></button>
+      <a class="brand" href="./" aria-label="SpriteQuest home" data-i18n-aria-label="home"><img src="assets/mageR.png" alt="" />SPRITE<span>QUEST</span></a>
+      <nav aria-label="Main navigation" data-i18n-aria-label="navigation"><button id="nav-game" class="nav-button active" aria-current="page" data-i18n="nav.play">Play</button><button id="nav-editor" class="nav-button" data-i18n="nav.editor">Map editor</button><a id="companion-site" class="nav-button companion-link" href="https://ctrlcctrlvisthebest.github.io/SpriteQuest/" target="_blank" rel="noopener noreferrer" data-i18n="nav.gameSite">Back to SpriteQuest ↗</a></nav>
+      <button id="import-play" class="button subtle"><span data-i18n="importPlay">Import CSV &amp; play</span> <span aria-hidden="true">↗</span></button>
     </header>
     <div class="site-content">
-    <section id="game-view" aria-label="游戏">
-      <div class="game-bar"><span id="game-map-name">经典冒险 · 4 个关卡</span><div class="button-row"><button id="back-editor" class="button small" hidden>返回编辑</button><button id="classic-game" class="button small" hidden>标准关卡</button><button id="restart-game" class="button small" disabled>开始 / 重新开始</button><button id="game-fullscreen" class="button small" aria-controls="game-shell" aria-pressed="false">⛶ 全屏</button></div></div>
-      <main id="game-shell" aria-label="SpriteQuest game canvas" tabindex="-1"><button id="exit-fullscreen" class="button fullscreen-exit" hidden>退出全屏 · Esc</button></main>
-      <p class="game-help">← → 移动 <span>↑ 跳跃</span><span>X 发射水弹</span><span>Z 冲刺</span><span>空格 重新开始</span><span>R 主菜单</span></p>
+    <section id="game-view" aria-label="Game" data-i18n-aria-label="game.region">
+      <div class="game-bar"><span id="game-map-name" data-i18n="game.classic">Classic adventure · 4 levels</span><div class="button-row"><button id="back-editor" class="button small" hidden data-i18n="game.backEditor">Back to editor</button><button id="classic-game" class="button small" hidden data-i18n="game.classicButton">Classic levels</button><button id="restart-game" class="button small" disabled data-i18n="game.restart">Start / restart</button><button id="game-fullscreen" class="button small" aria-controls="game-shell" aria-pressed="false" data-i18n="fullscreen.enter">⛶ Fullscreen</button></div></div>
+      <main id="game-shell" aria-label="SpriteQuest game canvas" data-i18n-aria-label="game.canvas" tabindex="-1"><button id="exit-fullscreen" class="button fullscreen-exit" hidden data-i18n="fullscreen.exit">Exit fullscreen · Esc</button></main>
+      <p class="game-help"><span data-i18n="controls.move">← → Move</span> <span data-i18n="controls.jump">↑ Jump</span> <span data-i18n="controls.shoot">X Shoot water</span> <span data-i18n="controls.sprint">Z Sprint</span> <span data-i18n="controls.restart">Space Restart</span> <span data-i18n="controls.menu">R Main menu</span></p>
     </section>
-    <section id="editor-view" aria-label="地图编辑器" hidden>
+    <section id="editor-view" aria-label="Map editor" data-i18n-aria-label="nav.editor" hidden>
       <div class="editor-heading">
-        <div class="map-title"><span class="eyebrow">地图工坊</span><input id="map-name" aria-label="地图名称" value="我的冒险" maxlength="60" /></div>
-        <div class="button-row"><button id="editor-import" class="button">导入 CSV</button><button id="editor-export" class="button">导出 CSV <span aria-hidden="true">↓</span></button><button id="editor-play" class="button primary" disabled><span aria-hidden="true">▶</span> 试玩地图</button></div>
+        <div class="map-title"><span class="eyebrow" data-i18n="editor.title">Map workshop</span><input id="map-name" aria-label="Map name" data-i18n-aria-label="editor.name" value="My adventure" maxlength="60" /></div>
+        <div class="button-row"><button id="editor-import" class="button" data-i18n="editor.import">Import CSV</button><button id="editor-export" class="button"><span data-i18n="editor.export">Export CSV</span> <span aria-hidden="true">↓</span></button><button id="editor-play" class="button primary" disabled><span aria-hidden="true">▶</span> <span data-i18n="editor.play">Play map</span></button></div>
       </div>
       <div class="editor-layout">
-        <aside class="palette-panel" aria-label="地形和物件">
-          <div class="panel-heading">素材库 <span>选择后绘制</span></div><div id="tile-palette"></div>
-          <div class="selection-info"><span class="eyebrow">当前选择</span><strong id="selected-name">雪地</strong><p id="selected-description">可以站立的积雪地面。</p></div>
+        <aside class="palette-panel" aria-label="Terrain and objects" data-i18n-aria-label="editor.palette">
+          <div class="panel-heading"><span data-i18n="editor.library">Tile palette</span> <span data-i18n="editor.choose">Select to paint</span></div><div id="tile-palette"></div>
+          <div class="selection-info"><span class="eyebrow" data-i18n="editor.selection">Selected tile</span><strong id="selected-name" data-i18n="tile.2.name">Snow</strong><p id="selected-description" data-i18n="tile.2.description">Solid ground covered in snow.</p></div>
         </aside>
         <div class="map-workspace">
           <div class="editor-tools">
-            <div class="tool-group" aria-label="绘制工具"><button class="tool-button active" data-tool="paint" title="画笔 (B)" aria-pressed="true">✎ <span>画笔</span></button><button class="tool-button" data-tool="erase" title="橡皮 (E)" aria-pressed="false">⌫ <span>橡皮</span></button><button class="tool-button" data-tool="fill" title="填充 (G)" aria-pressed="false">▨ <span>填充</span></button></div>
-            <div class="tool-group"><button id="editor-undo" class="tool-button" title="撤销 (Ctrl / ⌘ Z)" aria-label="撤销" disabled>↶</button><button id="editor-redo" class="tool-button" title="重做 (Ctrl / ⌘ Shift Z)" aria-label="重做" disabled>↷</button></div>
-            <div class="view-tools"><label><input id="show-grid" type="checkbox" checked /> 网格</label><label>缩放 <select id="editor-zoom"><option value="fit" selected>适应地图</option><option value="16">50%</option><option value="24">75%</option><option value="32">100%</option><option value="40">125%</option></select></label></div>
+            <div class="tool-group" aria-label="Drawing tools" data-i18n-aria-label="editor.tools"><button class="tool-button active" data-tool="paint" title="Brush (B)" data-i18n-title="tool.paintTip" aria-pressed="true">✎ <span data-i18n="tool.paint">Brush</span></button><button class="tool-button" data-tool="erase" title="Eraser (E)" data-i18n-title="tool.eraseTip" aria-pressed="false">⌫ <span data-i18n="tool.erase">Eraser</span></button><button class="tool-button" data-tool="fill" title="Fill (G)" data-i18n-title="tool.fillTip" aria-pressed="false">▨ <span data-i18n="tool.fill">Fill</span></button></div>
+            <div class="tool-group"><button id="editor-undo" class="tool-button" title="Undo (Ctrl / ⌘ Z)" data-i18n-title="tool.undoTip" aria-label="Undo" data-i18n-aria-label="tool.undo" disabled>↶</button><button id="editor-redo" class="tool-button" title="Redo (Ctrl / ⌘ Shift Z)" data-i18n-title="tool.redoTip" aria-label="Redo" data-i18n-aria-label="tool.redo" disabled>↷</button></div>
+            <div class="view-tools"><label><input id="show-grid" type="checkbox" checked /> <span data-i18n="editor.grid">Grid</span></label><label><span data-i18n="editor.zoom">Zoom</span> <select id="editor-zoom"><option value="fit" selected data-i18n="editor.fit">Fit map</option><option value="16">50%</option><option value="24">75%</option><option value="32">100%</option><option value="40">125%</option></select></label></div>
           </div>
-          <div id="map-viewport" class="map-viewport"><canvas id="editor-canvas" tabindex="0" aria-label="地图画布：选择左侧素材后，点击或拖动绘制。方向键移动光标，空格放置。"></canvas></div>
-          <div class="canvas-footer"><span id="map-size"></span><span id="cursor-position">点击或拖动绘制 · 右键擦除 · 滚动查看地图</span><span id="draft-status">本地草稿</span></div>
+          <div id="map-viewport" class="map-viewport"><canvas id="editor-canvas" tabindex="0" aria-label="Map canvas: select a tile, then click or drag to paint. Use arrow keys to move the cursor and Space to place a tile." data-i18n-aria-label="editor.canvas"></canvas></div>
+          <div class="canvas-footer"><span id="map-size"></span><span id="cursor-position" data-i18n="editor.paintHelp">Click or drag to paint · Right-click to erase · Scroll to explore</span><span id="draft-status" data-i18n="draft.local">Local draft</span></div>
           <div class="map-settings">
-            <div class="new-map-controls"><span>新地图</span><label>宽 <input id="map-cols" type="number" min="8" max="120" value="40" /></label><span>×</span><label>高 <input id="map-rows" type="number" min="6" max="80" value="18" /></label><button id="new-map" class="button small">创建</button></div>
-            <div class="button-row"><select id="map-template" aria-label="内置地图"><option value="1">内置关卡 1</option><option value="2">内置关卡 2</option><option value="3">内置关卡 3</option><option value="4">内置关卡 4</option></select><button id="load-template" class="button small">载入编辑</button></div>
+            <div class="new-map-controls"><span data-i18n="editor.new">New map</span><label><span data-i18n="editor.width">Width</span> <input id="map-cols" type="number" min="8" max="120" value="40" /></label><span>×</span><label><span data-i18n="editor.height">Height</span> <input id="map-rows" type="number" min="6" max="80" value="18" /></label><button id="new-map" class="button small" data-i18n="editor.create">Create</button></div>
+            <div class="button-row"><select id="map-template" aria-label="Built-in maps" data-i18n-aria-label="editor.templates"><option value="1" data-i18n="editor.template1">Built-in level 1</option><option value="2" data-i18n="editor.template2">Built-in level 2</option><option value="3" data-i18n="editor.template3">Built-in level 3</option><option value="4" data-i18n="editor.template4">Built-in level 4</option></select><button id="load-template" class="button small" data-i18n="editor.load">Load map</button></div>
           </div>
-          <p class="editor-help">先铺地形，再放起点和终点宝石。试玩后可返回继续编辑，也可以导出 CSV 分享给朋友。<span>方向键移动光标，空格绘制；B 画笔 · E 橡皮 · G 填充 · ⌘ / Ctrl Z 撤销</span></p>
+          <p class="editor-help"><span data-i18n="editor.help">Paint terrain, then add a player start and an exit gem. Play your map, return to edit, or export a CSV to share with friends.</span><span data-i18n="editor.shortcuts">Arrow keys: move cursor · Space: paint · B: brush · E: eraser · G: fill · Ctrl / ⌘ Z: undo</span></p>
         </div>
       </div>
     </section>
     </div>
     <div class="feedback-dock">
+      <select id="language-select" class="language-select" aria-label="Language / 语言"><option value="en">English</option><option value="zh">中文</option></select>
       <div class="feedback-control">
         <a class="button feedback-button" href="https://forms.gle/j6agKyoEvyPoPSjP7" target="_blank" rel="noopener noreferrer" aria-describedby="feedback-tooltip">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 3V11.5a8.5 8.5 0 0 1 8.5-8.5h3a8.5 8.5 0 0 1 8.5 8.5Z" transform="translate(1 -1) scale(.95)"/><path d="M7 9h9M7 13h6"/></svg>
-          <span>Feedback</span>
+          <span data-i18n="feedback">Feedback</span>
         </a>
-        <span id="feedback-tooltip" class="feedback-tooltip" role="tooltip">Found a bug or have an idea?</span>
+        <span id="feedback-tooltip" class="feedback-tooltip" role="tooltip" data-i18n="feedback.tip">Found a bug or have an idea?</span>
       </div>
     </div>
     <input id="csv-file" type="file" accept=".csv,text/csv" hidden />
-    <div id="app-message" role="status" aria-live="polite" hidden><span></span><button aria-label="关闭提示">×</button></div>
-    <script src="map-format.js?v=1"></script>
-    <script src="sketch.js?v=7"></script>
-    <script src="editor.js?v=2"></script>
-    <script src="fullscreen.js?v=1"></script>
+    <div id="app-message" role="status" aria-live="polite" hidden><span></span><button aria-label="Dismiss message" data-i18n-aria-label="closeMessage">×</button></div>
+    <script src="i18n.js?v=1"></script>
+    <script src="map-format.js?v=2"></script>
+    <script src="sketch.js?v=8"></script>
+    <script src="editor.js?v=3"></script>
+    <script src="fullscreen.js?v=2"></script>
   </body>
 </html>

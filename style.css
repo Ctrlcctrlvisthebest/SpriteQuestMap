@@ -99,3 +99,13 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .fullscreen-exit { position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 1; min-height: 44px; padding: 8px 12px; color: #e8edf4; background: #18212de6; border-color: #526078; font-size: 12px; }
 #game-fullscreen { min-height: 36px; }
 @media (max-width: 640px) { .game-bar .button-row { flex-wrap: wrap; gap: 8px; } #game-shell canvas { width: min(100%, calc(100dvh * 1.875)) !important; } #game-shell.is-expanded canvas { width: min(100vw, calc(100dvh * 1.875)) !important; } }
+
+.language-select { margin-right: auto; min-height: 40px; max-width: 120px; font-size: 13px; border-color: var(--line); background: #18212d; }
+.game-help span:first-child { margin-left: 0; }
+.editor-help > span:first-child { color: var(--muted); }
+.panel-heading > span:first-child { color: inherit; font: inherit; }
+@media (max-width: 640px) {
+  .nav-button { padding-inline: 8px; font-size: 12px; white-space: nowrap; }
+  .editor-heading .button-row { gap: 6px; flex-wrap: wrap; }
+  .editor-heading .button { font-size: 12px; padding: 10px 6px; }
+}

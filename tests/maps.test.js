@@ -34,9 +34,9 @@ test("new map is playable and includes one start, an exit and a solid floor", ()
   for (const [w, h] of [[7, 6], [8, 5], [121, 8], [8, 81], [8.5, 6], [NaN, 6]]) assert.throws(() => M.createMap(w, h));
 });
 test("play validation catches missing exits, ambiguous starts and fully blocked maps", () => {
-  assert.throws(() => M.validatePlayable([[10, 0], [2, 2]]), /宝石/);
-  assert.throws(() => M.validatePlayable([[10, 10, 6]]), /多个/);
-  assert.throws(() => M.validatePlayable([[1, 6], [2, 2]]), /出生/);
+  assert.throws(() => M.validatePlayable([[10, 0], [2, 2]]), /gem/);
+  assert.throws(() => M.validatePlayable([[10, 10, 6]]), /multiple/);
+  assert.throws(() => M.validatePlayable([[1, 6], [2, 2]]), /spawn/);
   assert.deepEqual(M.validatePlayable([[0, 6], [2, 2]]), { col: 0, row: 0 });
 });
 test("flood fill respects boundaries and handles maximum map size without recursion", () => {
@@ -50,7 +50,7 @@ test("flood fill respects boundaries and handles maximum map size without recurs
 
 function gameContext() {
   const context = vm.createContext({
-    assert, SpriteMap: M, floor: Math.floor, round: Math.round, min: Math.min, max: Math.max,
+    assert, SpriteMap: M, I18n: require("../i18n.js"), floor: Math.floor, round: Math.round, min: Math.min, max: Math.max,
     constrain: (n, low, high) => Math.max(low, Math.min(high, n)), millis: () => 5000,
     frameCount: 100, sounds: {}, userStartAudio: () => {}, getAudioContext: () => ({ state: "suspended" })
   });

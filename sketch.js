@@ -174,8 +174,8 @@ function drawScore() {
   fill("#dae6f0"); rect(420, 85, 228, 4, 2);
   fill(SCENE.blue); rect(420, 85, 228 * constrain(experience / getExperienceToNextLevel(), 0, 1), 4, 2);
   if (endlessMode) {
-    fill(255, 255, 255, 235); rect(686, 16, 200, 40, 7);
-    fill("#305be8"); text(I18n.t("hud.endless"), 702, 43);
+    fill(255, 255, 255, 235); rect(16, 110, 200, 40, 7);
+    fill("#305be8"); text(I18n.t("hud.endless"), 32, 137);
   }
   mage.drawCooldownTime();
   pop();
@@ -612,7 +612,7 @@ class Mage extends Character {
   drawCooldownTime() {
     const shotCooldown = getPlayerCooldown(BASE_SHOT_COOLDOWN);
     const sprintCooldown = getPlayerCooldown(BASE_SPRINT_COOLDOWN);
-    const panelX = width - 310, panelY = height - 102;
+    const panelX = 686, panelY = 16;
     noStroke(); fill(255, 255, 255, 240); rect(panelX, panelY, 294, 86, 10);
     const items = [
       { x: panelX + 14, label: "X", name: I18n.t("hud.shot"), percent: constrain((frameCount - this.lastShotFrame) / shotCooldown, 0, 1) },

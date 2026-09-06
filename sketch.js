@@ -8,6 +8,8 @@ const SPRITE_HEIGHT = 50;
 const MAP_COUNT = 4;
 const GAME_WIDTH = 1500;
 const GAME_HEIGHT = 800;
+const SCENE = Object.freeze({ sky: "#e3f0f7", far: "#c7dfe9", near: "#d3e8ed", snow: "#f8fcff", ink: "#233747", muted: "#526d7d", blue: "#305be8", coral: "#c96a51" });
+let reducedMotion = false;
 const ENEMY_SPAWN_OFFSETS = [0, 250, -250, 500, -500];
 const BASE_MOVE_SPEED = 7;
 const BASE_SHOT_COOLDOWN = 18;
@@ -44,6 +46,10 @@ function setup() {
   const canvas = createCanvas(GAME_WIDTH, GAME_HEIGHT);
   canvas.parent("game-shell");
   pixelDensity(1);
+  noSmooth();
+  const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+  reducedMotion = motionPreference.matches;
+  motionPreference.addEventListener("change", event => { reducedMotion = event.matches; });
   imageMode(CORNER);
   textFont("system-ui");
   mage = new Mage(250, 400);
@@ -69,12 +75,11 @@ function draw() {
 }
 
 function drawPlaying() {
-  background(100, 200, 255);
+  drawWorldLandscape();
   push();
   translate(-viewX, -viewY);
   world.drawTiles();
   const nearby = world.getNearByTiles(mage);
-  drawNearbyTiles(nearby);
   mage.setVelocity();
   mage.handleHorizontalMovement(nearby);
   mage.applyGravity(nearby);
@@ -165,7 +170,9 @@ function drawScore() {
   fill("#526d7d"); textSize(17);
   text(I18n.t("hud.difficulty", { value: getDifficultyName() }), 32, 81);
   text(I18n.t("hud.playerLevel", { value: playerLevel }), 232, 81);
-  text(I18n.t("hud.xp", { value: experience, next: getExperienceToNextLevel() }), 420, 81);
+  text(I18n.t("hud.xp", { value: experience, next: getExperienceToNextLevel() }), 420, 77);
+  fill("#dae6f0"); rect(420, 85, 228, 4, 2);
+  fill(SCENE.blue); rect(420, 85, 228 * constrain(experience / getExperienceToNextLevel(), 0, 1), 4, 2);
   if (endlessMode) {
     fill(255, 255, 255, 235); rect(686, 16, 200, 40, 7);
     fill("#305be8"); text(I18n.t("hud.endless"), 702, 43);
@@ -174,14 +181,37 @@ function drawScore() {
   pop();
 }
 
-function drawNearbyTiles(nearby) {
-  rectMode(CORNER);
-  for (const platform of nearby) {
-    stroke(0);
-    strokeWeight(4);
-    noFill();
-    rect(platform.x, platform.y, platform.size, platform.size);
+// Backdrop shapes never participate in the tile grid or collisions.
+function drawWorldLandscape() {
+  push();
+  background(SCENE.sky); noStroke();
+  const cameraX = reducedMotion ? 0 : viewX, cameraY = reducedMotion ? 0 : viewY;
+  // Repeat the scenery across any custom-map width, including vertical levels.
+  for (let repeat = -1; repeat <= 2; repeat++) {
+    const x = repeat * 1000 - (cameraX * .12 % 1000);
+    const y = 230 - cameraY * .06;
+    fill(SCENE.far);
+    rect(x + 110, y + 100, 170, height); rect(x + 170, y + 40, 110, 60);
+    rect(x + 340, y - 25, 210, height); rect(x + 425, y - 90, 125, 65);
+    rect(x + 680, y + 60, 200, height); rect(x + 730, y, 100, 60);
+    fill("#edf7fa");
+    rect(x + 170, y + 40, 110, 6); rect(x + 425, y - 90, 125, 6); rect(x + 730, y, 100, 6);
   }
+  for (let repeat = -1; repeat <= 2; repeat++) {
+    const x = repeat * 900 - (cameraX * .24 % 900);
+    const y = 480 - cameraY * .1;
+    fill(SCENE.near);
+    rect(x, y + 45, 240, height); rect(x + 100, y, 140, 45);
+    rect(x + 330, y - 65, 230, height); rect(x + 410, y - 120, 150, 55);
+    rect(x + 620, y + 5, 210, height);
+  }
+  fill(SCENE.snow);
+  for (let repeat = -1; repeat <= 2; repeat++) {
+    const x = repeat * 1100 - (cameraX * .06 % 1100);
+    rect(x + 160, 142, 180, 24); rect(x + 205, 118, 90, 24);
+    rect(x + 680, 218, 150, 22); rect(x + 715, 196, 65, 22);
+  }
+  pop();
 }
 
 function updateCamera() {
@@ -266,15 +296,15 @@ function playSound(sound) {
 
 // A quiet snow landscape built from the same tiles the player can paint.
 function drawMenuLandscape() {
-  background("#e3f0f7");
+  background(SCENE.sky);
   noStroke();
-  fill("#c7dfe9");
+  fill(SCENE.far);
   rect(810, 320, 160, 400); rect(870, 245, 100, 100);
   rect(1060, 235, 190, 500); rect(1130, 170, 120, 100);
   rect(1340, 310, 160, 440);
-  fill("#d3e8ed");
+  fill(SCENE.near);
   rect(740, 470, 210, 280); rect(980, 390, 180, 340); rect(1240, 440, 260, 300);
-  fill("#f8fcff");
+  fill(SCENE.snow);
   rect(850, 130, 180, 27); rect(884, 103, 100, 27);
   rect(1270, 95, 150, 25); rect(1300, 70, 70, 25);
   // Stepped islands echo the editor's grid without introducing new game art.
@@ -327,7 +357,7 @@ function drawIntroScreen() {
 
 function drawLevelScreen() {
   push();
-  background("#e3f0f7");
+  background(SCENE.sky);
   textAlign(CENTER, BASELINE); textFont("Trebuchet MS");
   noStroke(); noSmooth(); image(images.mageR, width / 2 - 45, 220, 90, 90);
   const percent = constrain((millis() - timerStart) / waitTime, 0, 1);
@@ -554,8 +584,16 @@ class Mage extends Character {
     const sprite = this.isSprinting()
       ? images[this.facingRight ? "mageSprintR" : "mageSprintL"]
       : images[this.facingRight ? "mageR" : "mageL"];
-    const offset = this.onGround && !this.isSprinting() ? sin(frameCount * .1) * 5 : 0;
-    image(sprite, this.x, this.y + offset, 50, 50);
+    const offset = this.onGround && !this.isSprinting() && !reducedMotion ? sin(frameCount * .1) * 3 : 0;
+    push(); noStroke();
+    if (this.onGround) { fill(60, 103, 134, 40); ellipse(this.x + 25, this.y + 48, 36, 7); }
+    if (this.isSprinting() && !reducedMotion) {
+      const direction = this.facingRight ? 1 : -1;
+      tint(150, 190, 255, 65); image(sprite, this.x - direction * 24, this.y, 50, 50);
+      tint(190, 220, 255, 110); image(sprite, this.x - direction * 12, this.y, 50, 50);
+      noTint();
+    }
+    image(sprite, this.x, this.y + offset, 50, 50); pop();
   }
   isSprinting() { return frameCount - this.sprintStartFrame < this.sprintDurationFrames; }
   triggerSprint() {
@@ -574,15 +612,20 @@ class Mage extends Character {
   drawCooldownTime() {
     const shotCooldown = getPlayerCooldown(BASE_SHOT_COOLDOWN);
     const sprintCooldown = getPlayerCooldown(BASE_SPRINT_COOLDOWN);
+    const panelX = width - 310, panelY = height - 102;
+    noStroke(); fill(255, 255, 255, 240); rect(panelX, panelY, 294, 86, 10);
     const items = [
-      { x: width - 110, label: "X", name: I18n.t("hud.shot"), color: [40, 120, 255], percent: constrain((frameCount - this.lastShotFrame) / shotCooldown, 0, 1) },
-      { x: width - 50, label: "Z", name: I18n.t("hud.sprint"), color: [255, 150, 40], percent: constrain((frameCount - this.lastSprintFrame) / sprintCooldown, 0, 1) }
+      { x: panelX + 14, label: "X", name: I18n.t("hud.shot"), percent: constrain((frameCount - this.lastShotFrame) / shotCooldown, 0, 1) },
+      { x: panelX + 154, label: "Z", name: I18n.t("hud.sprint"), percent: constrain((frameCount - this.lastSprintFrame) / sprintCooldown, 0, 1) }
     ];
+    textFont("Trebuchet MS");
     for (const item of items) {
-      stroke(210); strokeWeight(3); fill(235); circle(item.x, height - 50, 42);
-      stroke(...item.color); noFill(); arc(item.x, height - 50, 42, 42, -HALF_PI, -HALF_PI + TWO_PI * item.percent);
-      noStroke(); fill(...item.color); textAlign(CENTER, CENTER); textSize(12); text(item.label, item.x, height - 50);
-      fill(255); textSize(10); text(item.name, item.x, height - 18);
+      fill("#eaf0ff"); rect(item.x, panelY + 14, 34, 34, 5);
+      fill(SCENE.blue); textAlign(CENTER, CENTER); textSize(20); text(item.label, item.x + 17, panelY + 31);
+      textAlign(LEFT, BASELINE); fill(SCENE.ink); textSize(17); text(item.name, item.x + 42, panelY + 27);
+      fill(SCENE.muted); textSize(13); text(I18n.t(item.percent >= 1 ? "hud.ready" : "hud.recharging"), item.x + 42, panelY + 46);
+      fill("#dce6ef"); rect(item.x, panelY + 61, 124, 6, 3);
+      fill(SCENE.blue); rect(item.x, panelY + 61, 124 * item.percent, 6, 3);
     }
   }
 }
@@ -647,22 +690,49 @@ class Enemy extends Character {
   }
   display() {
     if (!this.isAlive()) return;
-    image(images[this.enemyfacingRight ? "wizardR" : "wizardL"], this.x, this.y + (this.onGround ? sin(frameCount * .1) * 5 : 0), 50, 50);
-    noStroke(); fill(60); rect(this.x, this.y - 14, 50, 8);
-    fill(70, 220, 90); rect(this.x, this.y - 14, 50 * this.health / this.maxHealth, 8);
+    push(); noStroke();
+    if (this.onGround) { fill(60, 103, 134, 40); ellipse(this.x + 25, this.y + 48, 36, 7); }
+    image(images[this.enemyfacingRight ? "wizardR" : "wizardL"], this.x, this.y + (this.onGround && !reducedMotion ? sin(frameCount * .1) * 3 : 0), 50, 50);
+    fill(SCENE.snow); rect(this.x - 2, this.y - 14, 54, 9, 3);
+    for (let i = 0; i < this.maxHealth; i++) {
+      fill(i < this.health ? SCENE.coral : "#d8e2e9"); rect(this.x + i * 10, this.y - 12, 8, 5, 1);
+    }
+    pop();
   }
 }
 
 class Platform {
-  constructor(x, y, img, size) { this.x = x; this.y = y; this.img = img; this.size = size; }
-  display() { image(this.img, this.x, this.y, this.size, this.size); }
+  constructor(x, y, img, size, code = 0, edges = {}) { Object.assign(this, { x, y, img, size, code, edges }); }
+  display() {
+    push(); noStroke();
+    image(this.img, this.x, this.y, this.size, this.size);
+    // A light frost wash softens masonry while leaving every tile recognizable.
+    if ([1, 3, 8].includes(this.code)) { fill(227, 240, 247, 38); rect(this.x, this.y, this.size, this.size); }
+    if (this.edges.top && this.code !== 2) { fill(248, 252, 255, 165); rect(this.x, this.y, this.size, 3); }
+    if (this.edges.bottom) { fill(43, 76, 103, 38); rect(this.x, this.y + this.size - 3, this.size, 3); }
+    pop();
+  }
 }
 
 class Collectible {
   constructor(x, y, img, size, type, scoreValue = 0, experienceValue = 0) {
     Object.assign(this, { x, y, img, size, type, scoreValue, experienceValue });
   }
-  display() { image(this.img, this.x, this.y, this.size, this.size); }
+  display() {
+    push(); noStroke();
+    if (this.type === "gem") {
+      fill(255, 255, 255, 120); rect(this.x - 4, this.y - 4, this.size + 8, this.size + 8, 10);
+      fill(SCENE.blue);
+      rect(this.x - 9, this.y + 8, 3, 9); rect(this.x - 12, this.y + 11, 9, 3);
+      rect(this.x + this.size + 6, this.y + this.size - 13, 3, 9); rect(this.x + this.size + 3, this.y + this.size - 10, 9, 3);
+    }
+    image(this.img, this.x, this.y, this.size, this.size);
+    if (this.type === "magma") {
+      fill("#f2b16f"); rect(this.x, this.y, this.size, 3);
+      fill("#b64e3c"); rect(this.x, this.y + this.size - 3, this.size, 3);
+    }
+    pop();
+  }
   collidesWith(c) { return rectanglesOverlap(this.x, this.y, this.size, this.size, c.x, c.y, c.spriteWidth, c.spriteHeight); }
 }
 
@@ -670,7 +740,7 @@ class Projectile {
   static SIZE = 24;
   constructor(x, y, xVelocity) { Object.assign(this, { x, y, xVelocity }); }
   update() { this.x += this.xVelocity; }
-  display() { image(images.magma, this.x, this.y, Projectile.SIZE, Projectile.SIZE); }
+  display() { drawSpell(this.x, this.y, Projectile.SIZE, this.xVelocity, false); }
   hitsWall() { return world.isSolidAt(this.xVelocity > 0 ? this.x + Projectile.SIZE : this.x, this.y + Projectile.SIZE / 2); }
   isOffWorld() { return this.x + Projectile.SIZE < 0 || this.x > worldWidth || this.y + Projectile.SIZE < 0 || this.y > worldHeight; }
   collidesWith(c) { return rectanglesOverlap(this.x, this.y, Projectile.SIZE, Projectile.SIZE, c.x, c.y, c.spriteWidth, c.spriteHeight); }
@@ -680,7 +750,7 @@ class WaterProjectile {
   static SIZE = 20;
   constructor(x, y, xVelocity) { Object.assign(this, { x, y, xVelocity }); }
   update() { this.x += this.xVelocity; }
-  display() { image(images.water, this.x, this.y, WaterProjectile.SIZE, WaterProjectile.SIZE); }
+  display() { drawSpell(this.x, this.y, WaterProjectile.SIZE, this.xVelocity, true); }
   hitsWall() { return world.isSolidAt(this.xVelocity > 0 ? this.x + WaterProjectile.SIZE : this.x, this.y + WaterProjectile.SIZE / 2); }
   isOffWorld() { return this.x + WaterProjectile.SIZE < 0 || this.x > worldWidth || this.y + WaterProjectile.SIZE < 0 || this.y > worldHeight; }
   collidesWith(target) {
@@ -688,6 +758,19 @@ class WaterProjectile {
     const height = target instanceof Projectile ? Projectile.SIZE : target.spriteHeight;
     return rectanglesOverlap(this.x, this.y, WaterProjectile.SIZE, WaterProjectile.SIZE, target.x, target.y, size, height);
   }
+}
+
+function drawSpell(x, y, size, velocity, water) {
+  push(); noStroke();
+  const direction = velocity > 0 ? 1 : -1;
+  if (!reducedMotion) {
+    fill(water ? "#9ebef1" : "#e2a591");
+    rect(x - direction * 8, y + size * .3, size, size * .4, 2);
+  }
+  fill(water ? SCENE.blue : SCENE.coral); rect(x, y, size, size, 4);
+  fill(water ? "#a9ddfa" : "#f5cb91"); rect(x + 3, y + 3, size - 6, size - 6, 3);
+  fill(SCENE.snow); rect(x + (direction > 0 ? size - 8 : 3), y + 4, 5, size - 10, 2);
+  pop();
 }
 
 function rectanglesOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
@@ -707,7 +790,10 @@ class World {
     const tileImages = Object.fromEntries(SpriteMap.tiles.filter(tile => tile.solid).map(tile => [tile.code, images[tile.image]]));
     const collectiblesByCode = { "5": [images.gold1, "coin"], "6": [images.gem1, "gem"], "7": [images.magma, "magma"] };
     this.grid.forEach((line, row) => line.forEach((value, col) => {
-      if (tileImages[value]) this.tileGrid[col][row] = new Platform(col * TILE_SIZE, row * TILE_SIZE, tileImages[value], TILE_SIZE);
+      if (tileImages[value]) {
+        const edges = { top: !SpriteMap.byCode[this.grid[row - 1]?.[col]]?.solid, bottom: !SpriteMap.byCode[this.grid[row + 1]?.[col]]?.solid };
+        this.tileGrid[col][row] = new Platform(col * TILE_SIZE, row * TILE_SIZE, tileImages[value], TILE_SIZE, value, edges);
+      }
       else if (collectiblesByCode[value]) {
         const [img, type] = collectiblesByCode[value];
         collectibles.push(new Collectible(col * TILE_SIZE, row * TILE_SIZE, img, TILE_SIZE, type));
@@ -717,7 +803,11 @@ class World {
       }
     }));
   }
-  drawTiles() { for (const column of this.tileGrid) for (const tile of column) if (tile) tile.display(); }
+  drawTiles() {
+    const left = max(0, floor(viewX / TILE_SIZE)), right = min(this.cols - 1, floor((viewX + width) / TILE_SIZE));
+    const top = max(0, floor(viewY / TILE_SIZE)), bottom = min(this.rows - 1, floor((viewY + height) / TILE_SIZE));
+    for (let col = left; col <= right; col++) for (let row = top; row <= bottom; row++) this.tileGrid[col][row]?.display();
+  }
   getNearByTiles(c) {
     const result = [];
     const left = max(0, floor(c.x / TILE_SIZE) - 1), right = min(this.cols - 1, floor((c.x + c.spriteWidth) / TILE_SIZE) + 1);

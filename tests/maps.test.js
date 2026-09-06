@@ -118,3 +118,40 @@ test("Space preserves the original standard-game respawn behavior", () => {
     assert.equal(state, GameState.PLAYING);
   `, gameContext());
 });
+
+test("terrain drawing culls distant tiles without changing the collision grid", () => {
+  const context = gameContext();
+  vm.runInContext(`
+    width = 1500; height = 800;
+    const grid = Array.from({ length: 80 }, () => Array(120).fill(2));
+    world = new World(grid.map(row => row.join(',')));
+    const drawn = [];
+    for (const column of world.tileGrid) for (const tile of column) tile.display = () => drawn.push([tile.x, tile.y]);
+    viewX = 125; viewY = 75; world.drawTiles();
+    assert.equal(drawn.length, 31 * 17);
+    assert.ok(drawn.some(([x, y]) => x === 100 && y === 50));
+    assert.ok(drawn.some(([x, y]) => x === 1600 && y === 850));
+    assert.ok(!drawn.some(([x]) => x === 0 || x === 5900));
+    assert.equal(world.isSolidAt(5900, 3900), true);
+    drawn.length = 0; viewX = 4500; viewY = 3200; world.drawTiles();
+    assert.equal(drawn.length, 30 * 16);
+    assert.ok(drawn.some(([x, y]) => x === 5950 && y === 3950));
+  `, context);
+});
+
+test("frost edges follow exposed ground and leave platform and hazard bounds unchanged", () => {
+  vm.runInContext(`
+    world = new World(['1,2,8,7,6', '3,4,0,0,0']);
+    assert.equal(world.tileGrid[0][0].edges.top, true);
+    assert.equal(world.tileGrid[0][0].edges.bottom, false);
+    assert.equal(world.tileGrid[0][1].edges.top, false);
+    assert.equal(world.tileGrid[0][1].edges.bottom, true);
+    assert.equal(world.tileGrid[2][0].size, 50);
+    assert.equal(world.isSolidAt(125, 25), true);
+    assert.equal(world.isSolidAt(175, 25), false);
+    const lava = collectibles.find(item => item.type === 'magma');
+    assert.equal(lava.x, 150); assert.equal(lava.size, 50);
+    assert.equal(lava.collidesWith({x: 150, y: 0, spriteWidth: 50, spriteHeight: 50}), true);
+    assert.equal(lava.collidesWith({x: 200, y: 0, spriteWidth: 50, spriteHeight: 50}), false);
+  `, gameContext());
+});

@@ -155,16 +155,21 @@ function getPlayerCooldown(baseCooldown) {
 
 function drawScore() {
   push();
-  fill(0);
-  textAlign(LEFT, BASELINE);
-  textSize(24);
-  text(I18n.t("hud.score", { value: coinScore }), 20, 30);
-  text(I18n.t("hud.rank", { value: getRank() }), 20, 60);
-  text(I18n.t("hud.difficulty", { value: getDifficultyName() }), 20, 90);
-  text(customMap ? I18n.t("hud.custom") : I18n.t("hud.level", { value: mapNumber }), 20, 120);
-  text(I18n.t("hud.playerLevel", { value: playerLevel }), 20, 150);
-  text(I18n.t("hud.xp", { value: experience, next: getExperienceToNextLevel() }), 20, 180);
-  if (endlessMode) text(I18n.t("hud.endless"), 20, 210);
+  noStroke(); fill(255, 255, 255, 235); rect(16, 16, 660, 84, 10);
+  textFont("Trebuchet MS"); textAlign(LEFT, BASELINE);
+  image(images.gold1, 32, 33, 24, 24);
+  fill("#233747"); textSize(22);
+  text(I18n.t("hud.score", { value: coinScore }), 66, 53);
+  text(I18n.t("hud.rank", { value: getRank() }), 232, 53);
+  text(customMap ? I18n.t("hud.custom") : I18n.t("hud.level", { value: mapNumber }), 420, 53);
+  fill("#526d7d"); textSize(17);
+  text(I18n.t("hud.difficulty", { value: getDifficultyName() }), 32, 81);
+  text(I18n.t("hud.playerLevel", { value: playerLevel }), 232, 81);
+  text(I18n.t("hud.xp", { value: experience, next: getExperienceToNextLevel() }), 420, 81);
+  if (endlessMode) {
+    fill(255, 255, 255, 235); rect(686, 16, 200, 40, 7);
+    fill("#305be8"); text(I18n.t("hud.endless"), 702, 43);
+  }
   mage.drawCooldownTime();
   pop();
 }
@@ -259,63 +264,103 @@ function playSound(sound) {
   if (sound && sound.isLoaded() && getAudioContext().state === "running") sound.play();
 }
 
+// A quiet snow landscape built from the same tiles the player can paint.
+function drawMenuLandscape() {
+  background("#e3f0f7");
+  noStroke();
+  fill("#c7dfe9");
+  rect(810, 320, 160, 400); rect(870, 245, 100, 100);
+  rect(1060, 235, 190, 500); rect(1130, 170, 120, 100);
+  rect(1340, 310, 160, 440);
+  fill("#d3e8ed");
+  rect(740, 470, 210, 280); rect(980, 390, 180, 340); rect(1240, 440, 260, 300);
+  fill("#f8fcff");
+  rect(850, 130, 180, 27); rect(884, 103, 100, 27);
+  rect(1270, 95, 150, 25); rect(1300, 70, 70, 25);
+  // Stepped islands echo the editor's grid without introducing new game art.
+  noSmooth();
+  for (let x = 0; x < width; x += 64) image(images.snow, x, 710, 64, 64);
+  fill("#a4c7ce"); rect(0, 774, width, 26);
+  for (let x = 850; x < 1110; x += 64) image(images.snow, x, 560, 64, 64);
+  for (let x = 1180; x < 1440; x += 64) image(images.snow, x, 420, 64, 64);
+  image(images.mageR, 915, 432, 128, 128);
+  image(images.crate, 1280, 646, 64, 64);
+  image(images.crate, 1344, 646, 64, 64);
+  image(images.crate, 1344, 582, 64, 64);
+  image(images.gold1, 1090, 464, 44, 44);
+  image(images.gold1, 1150, 402, 44, 44);
+  image(images.gem1, 1300, 324, 76, 76);
+}
+
 function drawIntroScreen() {
-  textAlign(CENTER, BASELINE);
-  fill(255);
-  textSize(70);
-  text(customMap ? I18n.t("screen.customTitle") : "SPRITE QUEST", width / 2, 300);
-  fill(125);
-  textSize(30);
-  text(I18n.t("screen.controls"), width / 2, 380);
-  text(I18n.t("screen.difficulty"), width / 2, 430);
-  text(I18n.t("screen.selected", { value: getDifficultyName() }), width / 2, 480);
-  fill(255);
-  textSize(50);
-  text(I18n.t("screen.start"), width / 2, 560);
+  push();
+  drawMenuLandscape();
+  textAlign(LEFT, BASELINE);
+  fill("#233747"); textFont("Trebuchet MS"); textSize(28);
+  text(I18n.t("screen.tagline"), 86, 145);
+  textFont("Courier New"); textStyle(BOLD); textSize(112);
+  fill("#305be8");
+  if (customMap) {
+    textFont("Trebuchet MS"); textSize(64);
+    text(I18n.t("screen.customTitle"), 86, 285);
+  } else {
+    text("Sprite", 78, 278);
+    text("Quest", 78, 386);
+  }
+  textFont("Trebuchet MS"); textStyle(NORMAL); fill("#526d7d"); textSize(23);
+  text(I18n.t("screen.goal"), 86, 435);
+  for (const [index, difficulty] of [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD].entries()) {
+    const x = 86 + index * 195, active = selectedDifficulty === difficulty;
+    fill(active ? "#305be8" : "#c7dbe8"); rect(x, 489, 42, 44, 5);
+    fill(active ? "#fff" : "#233747"); textSize(23); text(String(index + 1), x + 14, 519);
+    fill(active ? "#305be8" : "#526d7d");
+    text(I18n.t(`difficulty.${difficulty.toLowerCase()}`), x + 54, 519);
+  }
+  fill("#233747"); textSize(29);
+  text(I18n.t("screen.start"), 86, 599);
+  fill("#526d7d"); textSize(21);
+  text(I18n.t("screen.difficulty"), 86, 640);
+  pop();
   timerStart = millis();
   if (resetMageRequested) startNewGame();
 }
 
 function drawLevelScreen() {
-  textAlign(LEFT, BASELINE);
+  push();
+  background("#e3f0f7");
+  textAlign(CENTER, BASELINE); textFont("Trebuchet MS");
+  noStroke(); noSmooth(); image(images.mageR, width / 2 - 45, 220, 90, 90);
   const percent = constrain((millis() - timerStart) / waitTime, 0, 1);
-  noFill();
-  rect(200, 500, 600, 20);
-  fill(255);
-  textSize(40);
-  text(customMap ? I18n.t("screen.loadingCustom") : I18n.t("screen.loadingLevel", { value: mapNumber }), 650, 300);
-  rect(500, 400, 600 * percent, 20);
-  fill(255);
-  textSize(40);
-  text(`${floor(percent * 100)}%`, 700, 500);
+  fill("#233747"); textSize(46);
+  text(customMap ? I18n.t("screen.loadingCustom") : I18n.t("screen.loadingLevel", { value: mapNumber }), width / 2, 380);
+  fill("#c7dbe8"); rect(500, 425, 500, 12, 6);
+  fill("#305be8"); rect(500, 425, 500 * percent, 12, 6);
+  textSize(24); text(`${floor(percent * 100)}%`, width / 2, 490);
+  pop();
   if (percent >= 1) state = GameState.PLAYING;
 }
 
 function drawVictoryScreen() {
-  drawEndScreen(I18n.t("screen.win"), I18n.t("screen.earned", { value: coinScore }), I18n.t("screen.restart"), 500);
-  fill(255);
-  textSize(38);
-  if (!customMap) text(I18n.t("screen.endless"), 460, 650);
-  else text(I18n.t("screen.mapComplete"), 280, 650);
+  drawEndScreen(I18n.t("screen.win"), I18n.t("screen.earned", { value: coinScore }), I18n.t("screen.restart"));
+  push(); textAlign(LEFT, BASELINE); textFont("Trebuchet MS"); fill("#526d7d"); textSize(23);
+  text(I18n.t(customMap ? "screen.mapComplete" : "screen.endless"), 86, 623, 640, 70);
+  pop();
 }
 
 function drawLoseScreen() {
-  drawEndScreen(I18n.t("screen.lose"), I18n.t("screen.noCoins"), I18n.t("screen.restart"), 450);
+  drawEndScreen(I18n.t("screen.lose"), I18n.t("screen.noCoins"), I18n.t("screen.restart"));
 }
 
-function drawEndScreen(title, subtitle, prompt, promptX) {
-  textAlign(LEFT, BASELINE);
-  fill(255);
-  textSize(70);
-  text(title, 600, 300);
-  fill(125);
-  textSize(30);
-  text(subtitle, 550, 400);
-  text(I18n.t("screen.chooseDifficulty"), 420, 460);
-  text(I18n.t("screen.selected", { value: getDifficultyName() }), 500, 500);
-  fill(255);
-  textSize(50);
-  text(prompt, promptX, 570);
+function drawEndScreen(title, subtitle, prompt) {
+  push();
+  drawMenuLandscape();
+  textAlign(LEFT, BASELINE); textFont("Trebuchet MS");
+  fill("#233747"); textStyle(BOLD); textSize(78); text(title, 86, 255);
+  textStyle(NORMAL); fill("#526d7d"); textSize(30); text(subtitle, 86, 322);
+  textSize(24); text(I18n.t("screen.chooseDifficulty"), 86, 418);
+  text(I18n.t("screen.selected", { value: getDifficultyName() }), 86, 465);
+  fill("#305be8"); textSize(34); text(prompt, 86, 565);
+  pop();
   if (resetMageRequested) startNewGame();
 }
 

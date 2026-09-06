@@ -720,12 +720,6 @@ class Collectible {
   }
   display() {
     push(); noStroke();
-    if (this.type === "gem") {
-      fill(255, 255, 255, 120); rect(this.x - 4, this.y - 4, this.size + 8, this.size + 8, 10);
-      fill(SCENE.blue);
-      rect(this.x - 9, this.y + 8, 3, 9); rect(this.x - 12, this.y + 11, 9, 3);
-      rect(this.x + this.size + 6, this.y + this.size - 13, 3, 9); rect(this.x + this.size + 3, this.y + this.size - 10, 9, 3);
-    }
     image(this.img, this.x, this.y, this.size, this.size);
     if (this.type === "magma") {
       fill("#f2b16f"); rect(this.x, this.y, this.size, 3);
@@ -760,16 +754,32 @@ class WaterProjectile {
   }
 }
 
-function drawSpell(x, y, size, velocity, water) {
-  push(); noStroke();
-  const direction = velocity > 0 ? 1 : -1;
-  if (!reducedMotion) {
-    fill(water ? "#9ebef1" : "#e2a591");
-    rect(x - direction * 8, y + size * .3, size, size * .4, 2);
+// Small, transparent pixel sprites share the characters' scale and muted palette.
+const SPELL_SPRITES = Object.freeze({
+  water: {
+    colors: ["#5b819b", "#79b4c7", "#b9e0e7"],
+    pixels: ["        ", "   11   ", "  1221  ", "1122331 ", "1222331 ", " 12221  ", "  111   ", "        "]
+  },
+  ember: {
+    colors: ["#a97465", "#c99879", "#e5c797"],
+    pixels: ["  1     ", " 12111  ", "1222221 ", "12233221", " 1223221", " 122221 ", "  1111  ", "        "]
   }
-  fill(water ? SCENE.blue : SCENE.coral); rect(x, y, size, size, 4);
-  fill(water ? "#a9ddfa" : "#f5cb91"); rect(x + 3, y + 3, size - 6, size - 6, 3);
-  fill(SCENE.snow); rect(x + (direction > 0 ? size - 8 : 3), y + 4, 5, size - 10, 2);
+});
+
+function drawSpell(x, y, size, velocity, water) {
+  const sprite = SPELL_SPRITES[water ? "water" : "ember"];
+  const pixel = floor(size / 8), inset = (size - pixel * 8) / 2;
+  push(); noStroke();
+  // Render inside the original hitbox; only the sprite changes, never the shot.
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const color = Number(sprite.pixels[row][col]);
+      if (!color) continue;
+      fill(sprite.colors[color - 1]);
+      const drawCol = velocity < 0 ? 7 - col : col;
+      rect(x + inset + drawCol * pixel, y + inset + row * pixel, pixel, pixel);
+    }
+  }
   pop();
 }
 

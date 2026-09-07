@@ -752,7 +752,7 @@ class Enemy extends Character {
     this.lastShotFrame = gameFrame - this.shootCooldownFrames; this.droppedBone = null; this.deathTime = null; this.onGround = false;
   }
   display() {
-    if (!this.isAlive()) return;
+    if (!this.isAlive() || !isInView(this.x, this.y, this.spriteWidth, this.spriteHeight, 16)) return;
     push(); noStroke();
     if (this.onGround) { fill(60, 103, 134, 40); ellipse(this.x + 25, this.y + 48, 36, 7); }
     image(images[this.enemyfacingRight ? "wizardR" : "wizardL"], this.x, this.y + (this.onGround && !reducedMotion ? sin(frameCount * .1) * 3 : 0), 50, 50);
@@ -782,6 +782,7 @@ class Collectible {
     Object.assign(this, { x, y, img, size, type, scoreValue, experienceValue });
   }
   display() {
+    if (!isInView(this.x, this.y, this.size, this.size)) return;
     push(); noStroke();
     image(this.img, this.x, this.y, this.size, this.size);
     if (this.type === "magma") {
@@ -799,7 +800,7 @@ class Projectile {
   constructor(x, y, xVelocity) { Object.assign(this, { x, y, xVelocity }); }
   get size() { return this.constructor.SIZE; }
   update() { this.x += this.xVelocity; }
-  display() { drawSpell(this.x, this.y, this.size, this.xVelocity, this.constructor.SPELL); }
+  display() { if (isInView(this.x, this.y, this.size, this.size)) drawSpell(this.x, this.y, this.size, this.xVelocity, this.constructor.SPELL); }
   hitsWall() { return world.overlapsSolid(this.x, this.y, this.size, this.size); }
   isOffWorld() { return this.x + this.size < 0 || this.x > worldWidth || this.y + this.size < 0 || this.y > worldHeight; }
   collidesWith(target) {
@@ -845,6 +846,10 @@ function drawSpell(x, y, size, velocity, kind) {
 
 function rectanglesOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax + aw > bx && ax < bx + bw && ay + ah > by && ay < by + bh;
+}
+
+function isInView(x, y, w, h, padding = 0) {
+  return rectanglesOverlap(x - padding, y - padding, w + padding * 2, h + padding * 2, viewX, viewY, width, height);
 }
 
 class World {

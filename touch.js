@@ -10,7 +10,7 @@ const TouchUI = (() => {
   const media = window.matchMedia(TOUCH_LAYOUT_QUERY);
   let lastState;
 
-  function write(element, value) { if (element.textContent !== value) element.textContent = value; }
+  function write(element, value, property = "textContent") { if (element[property] !== value) element[property] = value; }
   function release(pointer) {
     const button = pointers.get(pointer);
     pointers.delete(pointer);
@@ -87,13 +87,13 @@ const TouchUI = (() => {
         requestAnimationFrame(() => shell.scrollIntoView({ block: "nearest" }));
       }
     }
-    controls.hidden = !playing;
-    launch.hidden = playing;
-    menu.hidden = !playing;
-    start.disabled = loading;
-    difficulty.disabled = loading;
-    difficulty.value = selectedDifficulty;
-    endless.hidden = state !== GameState.VICTORY || !!customMap;
+    write(controls, !playing, "hidden");
+    write(launch, playing, "hidden");
+    write(menu, !playing, "hidden");
+    write(start, loading, "disabled");
+    write(difficulty, loading, "disabled");
+    write(difficulty, selectedDifficulty, "value");
+    write(endless, state !== GameState.VICTORY || !!customMap, "hidden");
     write(start, I18n.t(loading ? "touch.loading" : state === GameState.START ? "touch.start" : "touch.again"));
     if (playing) {
       write(status, [I18n.t("hud.score", { value: coinScore }), endlessMode ? I18n.t("hud.endless") : customMap ? I18n.t("hud.custom") : I18n.t("hud.level", { value: mapNumber }), I18n.t("touch.level", { value: playerLevel }), I18n.t("hud.xp", { value: experience, next: getExperienceToNextLevel() })].join(" · "));

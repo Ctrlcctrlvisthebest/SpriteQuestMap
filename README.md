@@ -123,3 +123,13 @@ Run `node --test tests/*.test.js` to check CSV limits and malformed input, impor
 Delayed CSV or template loads preserve edits made while loading; the latest import takes precedence. Renaming has its own undo step. Game timers pause in the editor and hidden tabs. Simultaneous hazards apply one damage penalty before pickups, and collision checks account for fast falls and projectile corners.
 
 导入或载入期间的新编辑会保留，旧请求不能覆盖新地图。重命名可独立撤销；进入编辑器或切到后台会暂停游戏计时。测试还覆盖无效尺寸、超大文件、草稿存储失败、多指取消、重复全屏操作与双语切换。
+
+## Performance / 性能
+
+The editor redraws only edited cells and the old/new cursor preview. Fill, undo, import, zoom, and grid changes still refresh the whole map. In a 120 × 80 map filled with terrain, moving across 100 cells now issues 300 image draws instead of 960,100; movement within the same cell issues none. Run `node scripts/bench-editor.cjs` to repeat the command-count benchmark, or pass an earlier commit to compare. This measures drawing work, not browser FPS.
+
+Offscreen pickups, enemies, and projectiles skip rendering while their simulation and collisions continue. Touch controls update DOM properties only when values change.
+
+Loaded textures were losslessly recompressed from 5,085,097 to 4,556,824 bytes (528,273 bytes / 10.4% smaller). Dimensions, filtered pixel data, transparency, and PNG metadata are unchanged. `scripts/optimize-png.cjs` can repeat this compression with Node's built-in modules; pass the PNG file paths as arguments.
+
+大地图光标和画笔只重画变化的格子，填充、撤销、缩放等仍完整刷新。屏幕外物件保留模拟与碰撞，跳过绘制；手机控件只在状态变化时写入界面。贴图无损压缩减少约 528 KB 下载量，保持原有画面、地图规则与操作速度。

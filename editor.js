@@ -11,6 +11,8 @@
   let hover = null, stroke = null, lastCell = null, drawingPointer = null, strokeCode = null, strokeIsFill = false;
   let undo = [], redo = [], importMode = "edit", renderPending = false, messageTimer;
   const sprites = {};
+  let fullRender = true;
+  const dirtyCells = new Map();
   let revision = 0, loadRequest = 0, nameBefore = null, committedName = nameInput.value;
   let pan = null, focusSpawnPending = false;
   const touchEditor = window.matchMedia(TOUCH_LAYOUT_QUERY);
@@ -59,15 +61,16 @@
     undo.push(before);
     if (undo.length > 60) undo.shift();
     redo = [];
-    persist(); updateControls(); requestRender();
+    persist(); updateControls(); requestRender(false);
   }
   function applyMap(next, name) {
+    dirtyCells.clear();
     grid = SpriteMap.clone(next);
     nameInput.value = committedName = name;
     nameBefore = null;
     $("map-cols").value = grid[0].length;
     $("map-rows").value = grid.length;
-    setHover(null); updateControls();
+    setHover(null); updateControls(); requestRender();
   }
   function restore(saved) {
     applyMap(saved.grid, saved.name);
@@ -112,7 +115,7 @@
     $("selected-name").textContent = SpriteMap.byCode[code].name;
     $("selected-description").textContent = SpriteMap.byCode[code].description;
     if (tool === "erase" || tool === "pan" || code === 10) setTool("paint");
-    requestRender();
+    markCell(hover); requestRender(false);
   }
   for (const group of ["terrain", "objects", "characters"]) {
     const wrapper = document.createElement("div");
@@ -138,8 +141,12 @@
     wrapper.append(label, palette); $("tile-palette").append(wrapper);
   }
 
-  function requestRender() {
-    if (renderPending) return;
+  function markCell(cell) {
+    if (cell) dirtyCells.set(`${cell.col},${cell.row}`, cell);
+  }
+  function requestRender(full = true) {
+    if (full !== false) fullRender = true;
+    if (renderPending || (!fullRender && !dirtyCells.size)) return;
     renderPending = true;
     requestAnimationFrame(() => { renderPending = false; render(); });
   }
@@ -148,7 +155,8 @@
       tileSize = Math.max(4, Math.min(40, Math.floor(Math.min((viewport.clientWidth - 2) / grid[0].length, (viewport.clientHeight - 2) / grid.length))));
     }
     const w = grid[0].length * tileSize, h = grid.length * tileSize;
-    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; fullRender = true; }
+    if (!fullRender && !dirtyCells.size) return;
     if (focusSpawnPending && viewport.clientWidth && viewport.clientHeight) {
       const spawn = SpriteMap.positions(grid, 10)[0] || { col: 2, row: Math.max(0, grid.length - 4) };
       focusSpawnPending = false;
@@ -156,14 +164,24 @@
       requestAnimationFrame(() => viewport.scrollTo((spawn.col + .5) * tileSize - viewport.clientWidth / 2, (spawn.row + .5) * tileSize - viewport.clientHeight / 2));
     }
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#64c8ff"; ctx.fillRect(0, 0, w, h);
-    grid.forEach((row, y) => row.forEach((value, x) => drawTile(value, x, y)));
-    if ($("show-grid").checked) {
-      ctx.beginPath(); ctx.strokeStyle = "rgba(18, 71, 99, .18)"; ctx.lineWidth = 1;
-      for (let x = 0; x <= w; x += tileSize) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, h); }
-      for (let y = 0; y <= h; y += tileSize) { ctx.moveTo(0, y + .5); ctx.lineTo(w, y + .5); }
-      ctx.stroke();
+    ctx.fillStyle = "#64c8ff";
+    if (fullRender) {
+      ctx.fillRect(0, 0, w, h);
+      grid.forEach((row, y) => row.forEach((value, x) => drawTile(value, x, y)));
+      drawGrid(0, 0, grid[0].length, grid.length);
+    } else {
+      // Repaint the old/new preview cells and edited terrain; leave the rest of the canvas intact.
+      for (const { col, row } of dirtyCells.values()) {
+        ctx.save(); ctx.beginPath(); ctx.rect(col * tileSize, row * tileSize, tileSize, tileSize); ctx.clip();
+        ctx.fillStyle = "#64c8ff";
+        ctx.fillRect(col * tileSize, row * tileSize, tileSize, tileSize);
+        drawTile(grid[row][col], col, row);
+        drawGrid(col, row, col + 1, row + 1);
+        ctx.restore();
+      }
     }
+    fullRender = false;
+    dirtyCells.clear();
     if (hover && tool !== "pan") {
       const code = tool === "erase" ? 0 : selected;
       ctx.globalAlpha = .55;
@@ -173,6 +191,13 @@
       ctx.strokeStyle = code ? "#f2ffdb" : "#ff6464"; ctx.lineWidth = 2;
       ctx.strokeRect(hover.col * tileSize + 1, hover.row * tileSize + 1, tileSize - 2, tileSize - 2);
     }
+  }
+  function drawGrid(left, top, right, bottom) {
+    if (!$("show-grid").checked) return;
+    ctx.beginPath(); ctx.strokeStyle = "rgba(18, 71, 99, .18)"; ctx.lineWidth = 1;
+    for (let col = left; col <= right; col++) { ctx.moveTo(col * tileSize + .5, top * tileSize); ctx.lineTo(col * tileSize + .5, bottom * tileSize); }
+    for (let row = top; row <= bottom; row++) { ctx.moveTo(left * tileSize, row * tileSize + .5); ctx.lineTo(right * tileSize, row * tileSize + .5); }
+    ctx.stroke();
   }
   function drawTile(code, col, row) {
     const sprite = sprites[code];
@@ -188,13 +213,17 @@
     return col >= 0 && row >= 0 && row < grid.length && col < grid[0].length ? { col, row } : null;
   }
   function setHover(cell) {
+    if (hover?.col !== cell?.col || hover?.row !== cell?.row) { markCell(hover); markCell(cell); }
     hover = cell;
-    $("cursor-position").textContent = cell ? I18n.t("editor.cursor", { col: cell.col + 1, row: cell.row + 1, tile: SpriteMap.byCode[grid[cell.row][cell.col]].name }) : I18n.t(tool === "pan" ? "editor.panHelp" : touchEditor.matches ? "editor.touchHelp" : "editor.paintHelp");
-    requestRender();
+    const label = cell ? I18n.t("editor.cursor", { col: cell.col + 1, row: cell.row + 1, tile: SpriteMap.byCode[grid[cell.row][cell.col]].name }) : I18n.t(tool === "pan" ? "editor.panHelp" : touchEditor.matches ? "editor.touchHelp" : "editor.paintHelp");
+    if ($("cursor-position").textContent !== label) $("cursor-position").textContent = label;
+    if (dirtyCells.size) requestRender(false);
   }
   function put(cell, code) {
-    if (code === 10) SpriteMap.positions(grid, 10).forEach(pos => { grid[pos.row][pos.col] = 0; });
+    if (grid[cell.row][cell.col] === code && code !== 10) return;
+    if (code === 10) SpriteMap.positions(grid, 10).forEach(pos => { grid[pos.row][pos.col] = 0; markCell(pos); });
     grid[cell.row][cell.col] = code;
+    markCell(cell);
   }
   function paintLine(from, to, code) {
     const steps = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
@@ -250,7 +279,7 @@
     strokeCode = event.button === 2 || tool === "erase" ? 0 : selected;
     canvas.setPointerCapture(event.pointerId);
     strokeIsFill = tool === "fill" && event.button !== 2 && strokeCode !== 10;
-    if (strokeIsFill) SpriteMap.fill(grid, cell.col, cell.row, strokeCode);
+    if (strokeIsFill) { SpriteMap.fill(grid, cell.col, cell.row, strokeCode); requestRender(); }
     else put(cell, strokeCode);
     lastCell = cell; setHover(cell);
   });
@@ -414,7 +443,7 @@
       event.preventDefault(); if (event.repeat) return;
       const cell = hover || { col: 0, row: 0 }, before = snapshot();
       const code = ["Backspace", "Delete"].includes(event.code) || tool === "erase" ? 0 : selected;
-      if (tool === "fill" && code !== 10) SpriteMap.fill(grid, cell.col, cell.row, code); else put(cell, code);
+      if (tool === "fill" && code !== 10) { SpriteMap.fill(grid, cell.col, cell.row, code); requestRender(); } else put(cell, code);
       commit(before); setHover(cell);
     }
   }, { passive: false });

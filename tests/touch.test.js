@@ -131,3 +131,18 @@ test("Space and Enter held on a touch button release independently", () => {
   ui.buttons.left.emit('blur');
   ui.run("mage.setVelocity(); assert.equal(mage.xVelocity, 0)");
 });
+
+test("idle touch HUD frames do not rewrite controls, and state changes still update immediately", () => {
+  const ui = setup();
+  let writes = 0;
+  for (const [id, property] of [["touch-controls", "hidden"], ["touch-launch", "hidden"], ["touch-menu", "hidden"], ["touch-start", "disabled"], ["touch-difficulty", "disabled"], ["touch-difficulty", "value"], ["touch-endless", "hidden"]]) {
+    let value = ui.ids[id][property];
+    Object.defineProperty(ui.ids[id], property, { get: () => value, set(next) { value = next; writes++; } });
+  }
+  ui.run("for (let i=0; i<60; i++) TouchUI.sync()");
+  assert.equal(writes, 0);
+  ui.run("state = GameState.LOADING; TouchUI.sync()");
+  assert.equal(ui.ids["touch-controls"].hidden, true);
+  assert.equal(ui.ids["touch-start"].disabled, true);
+  assert.ok(writes > 0);
+});

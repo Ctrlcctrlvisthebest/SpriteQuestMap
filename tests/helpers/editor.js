@@ -33,7 +33,7 @@ function setupEditor(options = {}) {
     blur() { if (document.activeElement === this) document.activeElement = null; this.emit('blur'); }
     click() { return this.emit('click'); }
     closest() { return null; }
-    getContext() { return new Proxy({}, { get: () => () => {} }); }
+    getContext() { return new Proxy({}, { get: (_target, method) => (...args) => options.onDraw?.(method, args) }); }
     getBoundingClientRect() { return { left: 0, top: 0, width: this.width, height: this.height }; }
     setPointerCapture(id) { this.captures.add(id); }
     hasPointerCapture(id) { return this.captures.has(id); }
@@ -58,7 +58,7 @@ function setupEditor(options = {}) {
     setTimeout: () => 0, clearTimeout() {}, fetch: (...args) => options.fetch(...args),
     URL: { createObjectURL(blob) { exported=blob; return 'blob:test'; }, revokeObjectURL() {} }
   });
-  vm.runInContext(fs.readFileSync(path.join(root,'editor.js'),'utf8'),context);
+  vm.runInContext(options.source ?? fs.readFileSync(path.join(root,'editor.js'),'utf8'),context);
   function flush() { for(let limit=0; raf.length && limit<10; limit++) raf.splice(0).forEach(fn=>fn()); }
   flush();
   const ui={ elements, context, window, document, tools, saved, flush, $: id=>elements.get(id),

@@ -7,7 +7,7 @@ const TouchUI = (() => {
   const start = $("touch-start"), menu = $("touch-menu"), endless = $("touch-endless"), difficulty = $("touch-difficulty");
   const buttons = [...controls.querySelectorAll("[data-action]")];
   const pointers = new Map();
-  const media = window.matchMedia("(max-width: 900px), (pointer: coarse)");
+  const media = window.matchMedia(TOUCH_LAYOUT_QUERY);
   let lastState;
 
   function write(element, value) { if (element.textContent !== value) element.textContent = value; }
@@ -24,7 +24,7 @@ const TouchUI = (() => {
     if (!touchLayout || !pressTouchAction(button.dataset.action, pointer)) return;
     pointers.set(pointer, button);
     button.classList.add("is-held");
-    userStartAudio();
+    enableAudio();
   }
   for (const button of buttons) {
     button.addEventListener("pointerdown", event => {
@@ -40,27 +40,27 @@ const TouchUI = (() => {
     button.addEventListener("keydown", event => {
       if (!["Space", "Enter"].includes(event.code)) return;
       event.preventDefault();
-      if (!event.repeat) press(button, `key:${button.dataset.action}`);
+      if (!event.repeat) press(button, `key:${button.dataset.action}:${event.code}`);
     });
     button.addEventListener("keyup", event => {
       if (!["Space", "Enter"].includes(event.code)) return;
-      event.preventDefault(); release(`key:${button.dataset.action}`);
+      event.preventDefault(); release(`key:${button.dataset.action}:${event.code}`);
     });
-    button.addEventListener("blur", () => release(`key:${button.dataset.action}`));
+    button.addEventListener("blur", () => ["Space", "Enter"].forEach(code => release(`key:${button.dataset.action}:${code}`)));
     button.addEventListener("contextmenu", event => event.preventDefault());
     button.addEventListener("click", event => {
       // Assistive technology can activate a button without a preceding pointer/key event.
       if (event.detail === 0 && !pointers.size) {
-        press(button, "assistive");
-        setTimeout(() => release("assistive"), 100);
+        const pointer = Symbol("assistive");
+        press(button, pointer);
+        setTimeout(() => release(pointer), 100);
       }
     });
   }
-  start.addEventListener("click", () => { startNewGame(); userStartAudio(); sync(); });
+  start.addEventListener("click", () => { startNewGame(); enableAudio(); sync(); });
   menu.addEventListener("click", () => { returnToMenu(); sync(); });
   endless.addEventListener("click", () => {
-    if (state !== GameState.VICTORY || customMap) return;
-    startEndlessMode(); userStartAudio(); sync();
+    startEndlessMode(); enableAudio(); sync();
   });
   difficulty.addEventListener("change", () => {
     if ([GameState.PLAYING, GameState.LOADING].includes(state) || !Object.values(Difficulty).includes(difficulty.value)) return;
@@ -103,11 +103,11 @@ const TouchUI = (() => {
     for (const button of buttons) {
       const action = button.dataset.action;
       if (!playing || !["shoot", "sprint"].includes(action)) continue;
-      const cooldown = getPlayerCooldown(action === "shoot" ? BASE_SHOT_COOLDOWN : BASE_SPRINT_COOLDOWN);
-      const last = action === "shoot" ? mage.lastShotFrame : mage.lastSprintFrame;
-      const progress = Math.min(1, Math.max(0, (frameCount - last) / cooldown));
-      button.style.setProperty("--ready", progress.toFixed(2));
-      button.setAttribute("aria-label", I18n.t(action === "shoot" ? "hud.shot" : "hud.sprint") + ": " + I18n.t(progress >= 1 ? "hud.ready" : "hud.recharging"));
+      const progress = mage.cooldownProgress(action);
+      const value = progress.toFixed(2);
+      if (button.style.getPropertyValue("--ready") !== value) button.style.setProperty("--ready", value);
+      const label = I18n.t(action === "shoot" ? "hud.shot" : "hud.sprint") + ": " + I18n.t(progress >= 1 ? "hud.ready" : "hud.recharging");
+      if (button.getAttribute("aria-label") !== label) button.setAttribute("aria-label", label);
     }
   }
   function updateLayout() {

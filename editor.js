@@ -9,10 +9,11 @@
   const DRAFT_KEY = "spritequest-map-draft-v1";
   let grid = SpriteMap.createMap(), selected = 2, tool = "paint", tileSize = 32;
   let hover = null, stroke = null, lastCell = null, drawingPointer = null, strokeCode = null, strokeIsFill = false;
-  let undo = [], redo = [], importMode = "edit", renderPending = false, messageTimer, pausedAt = null;
+  let undo = [], redo = [], importMode = "edit", renderPending = false, messageTimer;
   const sprites = {};
+  let revision = 0, loadRequest = 0, nameBefore = null, committedName = nameInput.value;
   let pan = null, focusSpawnPending = false;
-  const touchEditor = window.matchMedia("(max-width: 900px), (pointer: coarse)");
+  const touchEditor = window.matchMedia(TOUCH_LAYOUT_QUERY);
   function resetZoom() {
     $("editor-zoom").value = touchEditor.matches ? "32" : "fit";
     tileSize = 32;
@@ -46,24 +47,32 @@
     }
   }
   function updateControls() {
-    $("editor-undo").disabled = !undo.length;
-    $("editor-redo").disabled = !redo.length;
+    const pendingNameEdit = nameBefore && nameBefore.name !== nameInput.value;
+    $("editor-undo").disabled = !undo.length && !pendingNameEdit;
+    $("editor-redo").disabled = !redo.length || !!pendingNameEdit;
     $("map-size").textContent = I18n.t("editor.size", { cols: grid[0].length, rows: grid.length });
   }
   function commit(before) {
     if (before.name === nameInput.value && SpriteMap.toCSV(before.grid) === SpriteMap.toCSV(grid)) return;
+    revision++;
+    committedName = nameInput.value;
     undo.push(before);
     if (undo.length > 60) undo.shift();
     redo = [];
     persist(); updateControls(); requestRender();
   }
-  function restore(saved) {
-    grid = SpriteMap.clone(saved.grid);
-    nameInput.value = saved.name;
-    hover = null;
+  function applyMap(next, name) {
+    grid = SpriteMap.clone(next);
+    nameInput.value = committedName = name;
+    nameBefore = null;
     $("map-cols").value = grid[0].length;
     $("map-rows").value = grid.length;
-    updateControls(); persist(); requestRender();
+    setHover(null); updateControls();
+  }
+  function restore(saved) {
+    applyMap(saved.grid, saved.name);
+    revision++;
+    persist();
   }
   function undoEdit() {
     finishStroke();
@@ -78,11 +87,9 @@
   function replaceMap(next, name) {
     finishStroke();
     const before = snapshot();
-    grid = SpriteMap.clone(next); nameInput.value = name;
-    hover = null;
-    $("map-cols").value = grid[0].length; $("map-rows").value = grid.length;
+    applyMap(next, name);
     resetZoom();
-    commit(before); requestRender(); updateControls();
+    commit(before);
   }
   function setTool(next) {
     finishStroke();
@@ -93,7 +100,6 @@
       button.classList.toggle("active", button.dataset.tool === tool);
       button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
     });
-    requestRender();
   }
   function selectTile(code) {
     selected = code;
@@ -220,7 +226,14 @@
   for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
     viewport.addEventListener(type, event => { if (pan?.pointer === event.pointerId) finishPan(); });
   }
+  function finishNameEdit() {
+    if (!nameBefore) return;
+    const before = nameBefore;
+    nameBefore = null;
+    commit(before);
+  }
   function finishStroke() {
+    finishNameEdit();
     finishPan();
     if (!stroke) return;
     const before = stroke, pointer = drawingPointer;
@@ -270,28 +283,51 @@
     viewport.scrollTo(Math.max(0, (viewport.clientWidth - canvas.width) / 2) + centerX - viewport.clientWidth / 2, centerY - viewport.clientHeight / 2);
   };
   new ResizeObserver(requestRender).observe(viewport);
-  nameInput.addEventListener("input", persist);
+  nameInput.addEventListener("input", () => {
+    if (!nameBefore) nameBefore = { ...snapshot(), name: committedName };
+    revision++;
+    persist(); updateControls();
+  });
+  nameInput.addEventListener("change", finishNameEdit);
+  nameInput.addEventListener("blur", finishNameEdit);
   $("new-map").onclick = () => {
     try { replaceMap(SpriteMap.createMap(Number($("map-cols").value), Number($("map-rows").value)), I18n.t("map.defaultName")); message("message.created"); }
     catch (error) { message(error, true); }
   };
+  // CSV and built-in maps share one commit path. A delayed read must never replace newer work.
+  async function loadMap(read, mode, successMessage) {
+    finishStroke();
+    const request = ++loadRequest, startRevision = revision;
+    try {
+      const { text, name } = await read();
+      if (request !== loadRequest) return;
+      const next = SpriteMap.parseCSV(text);
+      if (mode === "play") SpriteMap.validatePlayable(next);
+      finishStroke();
+      if (startRevision !== revision) { message("message.loadDiscarded"); return; }
+      replaceMap(next, name);
+      if (mode === "play" && gameReady) playMap();
+      else { showView(true); message(successMessage); }
+    } catch (error) {
+      if (request === loadRequest) message(error, true);
+    }
+  }
   $("load-template").onclick = async () => {
     const button = $("load-template"), number = $("map-template").value;
     button.disabled = true;
     try {
-      const response = await fetch(`assets/map${number}.csv`);
-      if (!response.ok) throw I18n.error("error.template");
-      replaceMap(SpriteMap.parseCSV(await response.text()), I18n.t("map.templateName", { number }));
-      message("message.template");
-    } catch (error) { message(error, true); }
-    finally { button.disabled = false; }
+      await loadMap(async () => {
+        const response = await fetch(`assets/map${number}.csv`);
+        if (!response.ok) throw I18n.error("error.template");
+        return { text: await response.text(), name: I18n.t("map.templateName", { number }) };
+      }, "edit", "message.template");
+    } finally { button.disabled = false; }
   };
 
   function showView(editing) {
+    loadRequest++;
     finishStroke(); clearInputState();
-    if (editing && !editorActive && gameReady) pausedAt = millis();
-    if (!editing && editorActive && gameReady && pausedAt !== null) { timerStart += millis() - pausedAt; pausedAt = null; }
-    editorActive = editing;
+    setEditorActive(editing);
     $("editor-view").hidden = !editing; $("game-view").hidden = editing;
     for (const [id, active] of [["nav-editor", editing], ["nav-game", !editing]]) {
       $(id).classList.toggle("active", active);
@@ -313,15 +349,15 @@
       showView(false);
       customMap = { lines: SpriteMap.toCSV(grid).trimEnd().split("\n"), spawn, name: nameInput.value.trim() || I18n.t("map.defaultName") };
       updateGameBar(); startNewGame();
-      userStartAudio();
+      enableAudio();
     } catch (error) { message(error, true); }
   }
   $("nav-editor").onclick = () => showView(true);
   $("nav-game").onclick = () => showView(false);
   $("back-editor").onclick = () => showView(true);
   $("editor-play").onclick = playMap;
-  $("restart-game").onclick = () => { document.activeElement?.blur(); startNewGame(); userStartAudio(); };
-  $("classic-game").onclick = () => { customMap = null; updateGameBar(); document.activeElement?.blur(); startNewGame(); };
+  $("restart-game").onclick = () => { loadRequest++; document.activeElement?.blur(); startNewGame(); enableAudio(); };
+  $("classic-game").onclick = () => { loadRequest++; customMap = null; updateGameBar(); document.activeElement?.blur(); startNewGame(); };
   function ready() { $("editor-play").disabled = false; $("restart-game").disabled = false; }
   window.addEventListener("spritequest-ready", ready);
   if (gameReady) ready();
@@ -331,17 +367,12 @@
   $("import-play").onclick = () => chooseCSV("play");
   $("csv-file").addEventListener("change", async event => {
     const file = event.target.files[0], mode = importMode;
+    event.target.value = "";
     if (!file) return;
-    try {
+    await loadMap(async () => {
       if (file.size > SpriteMap.MAX_FILE_BYTES) throw I18n.error("error.fileSize");
-      const next = SpriteMap.parseCSV(await file.text());
-      // Validate before replacing the current draft, so failed imports leave it intact.
-      if (mode === "play") SpriteMap.validatePlayable(next);
-      replaceMap(next, file.name.replace(/\.csv$/i, "").slice(0, 60));
-      if (mode === "play" && gameReady) playMap();
-      else { showView(true); message("message.imported"); }
-    } catch (error) { message(error, true); }
-    finally { event.target.value = ""; }
+      return { text: await file.text(), name: file.name.replace(/\.csv$/i, "").slice(0, 60) || I18n.t("map.defaultName") };
+    }, mode, "message.imported");
   });
   function exportCSV() {
     finishStroke();
@@ -355,7 +386,7 @@
   $("editor-export").onclick = exportCSV;
 
   window.addEventListener("keydown", event => {
-    if (!editorActive || event.target.closest?.("input, select, textarea, [contenteditable='true']")) return;
+    if (!editorActive || event.isComposing || event.altKey || event.target.closest?.("input, select, textarea, [contenteditable='true']")) return;
     if (event.ctrlKey || event.metaKey) {
       if (event.code === "KeyZ") { event.preventDefault(); event.shiftKey ? redoEdit() : undoEdit(); }
       else if (event.code === "KeyY") { event.preventDefault(); redoEdit(); }
@@ -391,8 +422,7 @@
   try {
     const draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
     if (draft && typeof draft.csv === "string") {
-      grid = SpriteMap.parseCSV(draft.csv); nameInput.value = String(draft.name || I18n.t("map.defaultName")).slice(0, 60);
-      $("map-cols").value = grid[0].length; $("map-rows").value = grid.length;
+      applyMap(SpriteMap.parseCSV(draft.csv), String(draft.name || I18n.t("map.defaultName")).slice(0, 60));
       setDraftStatus("draft.restored");
     }
   } catch { setDraftStatus("draft.export"); }
@@ -402,6 +432,6 @@
     $("selected-description").textContent = SpriteMap.byCode[selected].description;
     updateControls(); updateGameBar(); setHover(hover); setDraftStatus(draftStatus); renderMessage();
   });
-  selectTile(selected); updateControls(); setHover(null); requestRender();
+  selectTile(selected); updateControls(); setHover(null);
   if (document.body.dataset.startView === "editor") showView(true);
 })();

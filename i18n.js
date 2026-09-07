@@ -3,6 +3,7 @@
 const I18n = (() => {
   // Each entry contains English first, then Simplified Chinese.
   const messages = {
+    "message.loadDiscarded": ["The map changed while loading. Import or load it again to replace your current work.", "载入期间地图已被修改，已保留当前编辑。若要替换，请重新导入或载入。"],
     "touch.controls": ["Touch controls", "触屏操作"],
     "touch.left": ["Move left", "向左移动"],
     "touch.right": ["Move right", "向右移动"],
@@ -54,12 +55,6 @@ const I18n = (() => {
     "controls.menuLabel": ["Main menu", "主菜单"],
     "screen.tagline": ["A little magic. A big adventure.", "小小魔法师，大大的冒险。"],
     "screen.goal": ["Collect coins. Find the gem. Make it your world.", "收集金币，找到宝石，创造你的世界。"],
-    "controls.move": ["← → Move", "← → 移动"],
-    "controls.jump": ["↑ Jump", "↑ 跳跃"],
-    "controls.shoot": ["X Shoot water", "X 发射水弹"],
-    "controls.sprint": ["Z Sprint", "Z 冲刺"],
-    "controls.restart": ["Space Restart", "空格 重新开始"],
-    "controls.menu": ["R Main menu", "R 主菜单"],
     "editor.title": ["Map workshop", "地图工坊"],
     "editor.name": ["Map name", "地图名称"],
     "editor.import": ["Import CSV", "导入 CSV"],
@@ -168,7 +163,6 @@ const I18n = (() => {
     "hud.recharging": ["Recharging", "冷却中"],
     "hud.sprint": ["Sprint", "冲刺"],
     "screen.customTitle": ["Custom quest", "自定义冒险"],
-    "screen.controls": ["Arrows to move, X to shoot, Space to restart, Z to sprint, R for menu", "方向键移动，X 发射水弹，空格重开，Z 冲刺，R 返回菜单"],
     "screen.difficulty": ["Press 1 for Easy, 2 for Normal, 3 for Hard", "按 1 选择简单，2 选择普通，3 选择困难"],
     "screen.selected": ["Selected difficulty: {value}", "当前难度：{value}"],
     "screen.start": ["Press [SPACE] to play", "按 [空格] 开始游戏"],

@@ -53,7 +53,7 @@ test("all translations are complete and preserve their interpolation parameters"
     const tokens = text => JSON.stringify((text.match(/\{\w+\}/g) || []).sort());
     assert.equal(tokens(values[0]), tokens(values[1]), key);
   }
-  for (const file of ["index.html", "editor.js", "fullscreen.js", "sketch.js", "map-format.js"]) {
+  for (const file of ["index.html", "editor.js", "fullscreen.js", "sketch.js", "map-format.js", "touch.js"]) {
     const text = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
     for (const match of text.matchAll(/(?:data-i18n(?:-title|-aria-label|-content)?="|(?:I18n|locale)\.(?:t|error)\(")([\w.]+)"/g)) {
       assert.ok(api.messages[match[1]], `${file}: ${match[1]}`);

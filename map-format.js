@@ -22,7 +22,7 @@ const SpriteMap = (() => {
   }));
   const byCode = Object.fromEntries(tiles.map(tile => [tile.code, tile]));
   function parseCSV(text) {
-    if (typeof text !== "string" || text.length > MAX_FILE_BYTES) throw locale.error("error.fileSize");
+    if (typeof text !== "string" || text.length > MAX_FILE_BYTES || new TextEncoder().encode(text).byteLength > MAX_FILE_BYTES) throw locale.error("error.fileSize");
     const lines = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n");
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
     if (!lines.length) throw locale.error("error.emptyFile");

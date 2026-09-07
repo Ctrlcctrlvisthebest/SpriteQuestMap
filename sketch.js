@@ -8,6 +8,7 @@ const SPRITE_HEIGHT = 50;
 const MAP_COUNT = 4;
 const GAME_WIDTH = 1500;
 const GAME_HEIGHT = 800;
+const TOUCH_LAYOUT_QUERY = "(max-width: 900px), (pointer: coarse)";
 const SCENE = Object.freeze({ sky: "#e3f0f7", far: "#c7dfe9", near: "#d3e8ed", snow: "#f8fcff", ink: "#233747", muted: "#526d7d", blue: "#305be8", coral: "#c96a51" });
 let reducedMotion = false;
 let touchLayout = false;
@@ -34,6 +35,7 @@ let endlessMode = false;
 let customMap = null;
 let editorActive = false;
 let gameReady = false;
+let gameHidden = false, gameTime = 0, gameFrame = 0, lastDrawTime = null;
 const images = {}, sounds = {}, mapLines = {};
 
 function preload() {
@@ -58,17 +60,43 @@ function setup() {
   mage = new Mage(250, 400);
   loadLevel(1);
   gameReady = true;
+  setGameHidden(document.hidden);
   window.dispatchEvent(new Event("spritequest-ready"));
   window.addEventListener("keydown", handleKeyDown, { passive: false });
   window.addEventListener("keyup", handleKeyUp, { passive: false });
   window.addEventListener("blur", clearInputState);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) clearInputState();
+    setGameHidden(document.hidden);
   });
 }
 
+// Simulation time stops in the editor and in hidden tabs, including when rAF is suspended.
+function advanceGameClock(now) {
+  const elapsed = lastDrawTime === null ? 0 : Math.max(0, now - lastDrawTime);
+  lastDrawTime = now;
+  if (editorActive || gameHidden) return false;
+  gameTime += elapsed;
+  if (state === GameState.PLAYING) gameFrame++;
+  return true;
+}
+
+function setEditorActive(active) {
+  if (editorActive === active) return;
+  editorActive = active;
+  lastDrawTime = null;
+  clearInputState();
+}
+
+function setGameHidden(hidden) {
+  gameHidden = hidden;
+  lastDrawTime = null;
+  if (hidden) clearInputState();
+}
+
+function isGamePlaying() { return gameReady && !editorActive && !gameHidden && state === GameState.PLAYING; }
+
 function draw() {
-  if (editorActive) return;
+  if (!advanceGameClock(millis())) return;
   background(0);
   if (state === GameState.START) drawIntroScreen();
   else if (state === GameState.LOADING) drawLevelScreen();
@@ -97,9 +125,15 @@ function drawPlaying() {
     enemy.applyGravity(enemyNearby);
     enemy.tryShootAt(mage);
   }
-  updateProjectiles();
-  updateWaterProjectiles();
+  updateProjectiles(projectiles);
+  updateProjectiles(waterProjectiles);
   resolveProjectileHits();
+  if (!mage.isSprinting()) {
+    const hit = projectiles.findIndex(shot => shot.collidesWith(mage));
+    if (hit !== -1) { projectiles.splice(hit, 1); takePlayerHit(); }
+  }
+  projectiles.forEach(shot => shot.display());
+  waterProjectiles.forEach(shot => shot.display());
   mage.display();
   enemies.forEach(enemy => enemy.display());
   checkCollectibleCollisions(mage);
@@ -227,28 +261,19 @@ function updateCamera() {
   viewY += .2 * (targetY - viewY);
 }
 
-function updateProjectiles() {
-  for (let i = projectiles.length - 1; i >= 0; i--) {
-    const shot = projectiles[i];
+function updateProjectiles(shots) {
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const shot = shots[i];
     shot.update();
-    if (shot.hitsWall() || shot.isOffWorld()) { projectiles.splice(i, 1); continue; }
-    shot.display();
-    if (!mage.isSprinting() && shot.collidesWith(mage)) {
-      projectiles.splice(i, 1);
-      coinScore -= 10;
-      state = coinScore < 0 ? GameState.LOSE : state;
-      resetMageRequested = true;
-    }
+    if (shot.hitsWall() || shot.isOffWorld()) shots.splice(i, 1);
   }
 }
 
-function updateWaterProjectiles() {
-  for (let i = waterProjectiles.length - 1; i >= 0; i--) {
-    const shot = waterProjectiles[i];
-    shot.update();
-    if (shot.hitsWall() || shot.isOffWorld()) waterProjectiles.splice(i, 1);
-    else shot.display();
-  }
+function takePlayerHit() {
+  if (state !== GameState.PLAYING || resetMageRequested) return;
+  coinScore -= 10;
+  if (coinScore < 0) state = GameState.LOSE;
+  resetMageRequested = true;
 }
 
 function resolveProjectileHits() {
@@ -269,6 +294,12 @@ function resolveProjectileHits() {
 }
 
 function checkCollectibleCollisions(character) {
+  if (state !== GameState.PLAYING || resetMageRequested) return;
+  // Damage wins over pickups/exit when their hitboxes overlap in the same frame.
+  if (collectibles.some(item => item.type === "magma" && item.collidesWith(character))) {
+    takePlayerHit();
+    return;
+  }
   for (let i = collectibles.length - 1; i >= 0; i--) {
     const item = collectibles[i];
     if (!item.collidesWith(character)) continue;
@@ -284,16 +315,17 @@ function checkCollectibleCollisions(character) {
       if (mapNumber > MAP_COUNT) state = GameState.VICTORY;
       else {
         state = GameState.LOADING;
-        timerStart = millis();
+        timerStart = gameTime;
         loadLevel(mapNumber);
       }
       break;
-    } else {
-      coinScore -= 10;
-      if (coinScore < 0) state = GameState.LOSE;
-      resetMageRequested = true;
     }
   }
+}
+
+function enableAudio() {
+  // Sound is optional: a rejected audio-unlock promise must not interrupt controls.
+  try { userStartAudio()?.catch(() => {}); } catch { /* Audio is unavailable. */ }
 }
 
 function playSound(sound) {
@@ -357,7 +389,6 @@ function drawIntroScreen() {
   fill("#526d7d"); textSize(21);
   text(I18n.t(touchLayout ? "touch.canvasDifficulty" : "screen.difficulty"), 86, 640);
   pop();
-  timerStart = millis();
   if (resetMageRequested) startNewGame();
 }
 
@@ -366,7 +397,7 @@ function drawLevelScreen() {
   background(SCENE.sky);
   textAlign(CENTER, BASELINE); textFont("Trebuchet MS");
   noStroke(); noSmooth(); image(images.mageR, width / 2 - 45, 220, 90, 90);
-  const percent = constrain((millis() - timerStart) / waitTime, 0, 1);
+  const percent = constrain((gameTime - timerStart) / waitTime, 0, 1);
   fill("#233747"); textSize(46);
   text(customMap ? I18n.t("screen.loadingCustom") : I18n.t("screen.loadingLevel", { value: mapNumber }), width / 2, 380);
   fill("#c7dbe8"); rect(500, 425, 500, 12, 6);
@@ -408,18 +439,18 @@ function startNewGame() {
   coinScore = 0;
   playerLevel = 1;
   experience = 0;
-  timerStart = millis();
+  timerStart = gameTime;
   state = GameState.LOADING;
   loadLevel(mapNumber);
   resetMageRequested = false;
 }
 
 function startEndlessMode() {
-  if (customMap) return;
+  if (!gameReady || customMap || state !== GameState.VICTORY) return;
   clearInputState();
   endlessMode = true;
   mapNumber = MAP_COUNT;
-  timerStart = millis();
+  timerStart = gameTime;
   state = GameState.LOADING;
   loadLevel(mapNumber);
   collectibles = collectibles.filter(item => item.type !== "gem");
@@ -428,9 +459,6 @@ function startEndlessMode() {
 
 function loadLevel(number) {
   collectibles = [];
-  projectiles = [];
-  waterProjectiles = [];
-  enemies = [];
   const lines = customMap ? customMap.lines : mapLines[number];
   world = new World(lines);
   worldWidth = world.cols * TILE_SIZE;
@@ -449,7 +477,7 @@ function resetMage() {
   mage.y = customMap ? customMap.spawn.row * TILE_SIZE : 400;
   mage.xVelocity = 0; mage.yVelocity = 0; mage.onGround = false;
   mage.resetSprintState();
-  mage.lastShotFrame = -BASE_SHOT_COOLDOWN;
+  mage.lastShotFrame = gameFrame - getPlayerCooldown(BASE_SHOT_COOLDOWN);
   projectiles = []; waterProjectiles = [];
   if (selectedDifficulty !== Difficulty.EASY) resetEnemies();
   resetMageRequested = false;
@@ -485,18 +513,19 @@ function respawnEnemy(enemy, index) {
 function updateEndlessRespawns() {
   if (!endlessMode) return;
   enemies.forEach((enemy, index) => {
-    if (!enemy.isAlive() && enemy.deathTime !== null && millis() - enemy.deathTime >= ENDLESS_RESPAWN_DELAY) {
+    if (!enemy.isAlive() && enemy.deathTime !== null && gameTime - enemy.deathTime >= ENDLESS_RESPAWN_DELAY) {
       respawnEnemy(enemy, index);
     }
   });
 }
 
 function hasTouchAction(action) {
-  return [...touchActions.values()].includes(action);
+  for (const held of touchActions.values()) if (held === action) return true;
+  return false;
 }
 
 function pressTouchAction(action, pointer) {
-  if (!gameReady || editorActive || state !== GameState.PLAYING || !["left", "right", "jump", "shoot", "sprint"].includes(action)) return false;
+  if (!isGamePlaying() || !["left", "right", "jump", "shoot", "sprint"].includes(action)) return false;
   if (touchActions.has(pointer)) return false;
   touchActions.set(pointer, action);
   if (action === "left" || action === "right") mage.facingRight = action === "right";
@@ -523,12 +552,13 @@ function clearInputState() {
 }
 
 function handleKeyDown(event) {
-  if (editorActive || !gameReady || event.target.closest?.("input, select, textarea, button, a, [contenteditable='true']")) return;
+  if (editorActive || gameHidden || !gameReady || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.target.closest?.("input, select, textarea, button, a, [contenteditable='true']")) return;
   const code = event.code;
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "Space", "KeyX", "KeyZ", "KeyR", "KeyE", "Digit1", "Digit2", "Digit3"].includes(code)) return;
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "Space"].includes(code)) event.preventDefault();
-  userStartAudio();
+  enableAudio();
   const wasHeld = heldKeys.has(code);
-  heldKeys.add(code);
+  if (["ArrowLeft", "ArrowRight", "ArrowUp"].includes(code)) heldKeys.add(code);
 
   if (code === "ArrowUp" && !wasHeld) jumpQueued = true;
   else if (code === "KeyZ" && !event.repeat) mage.triggerSprint();
@@ -555,18 +585,18 @@ function handleKeyUp(event) {
 class Character {
   constructor(x, y) {
     this.x = x; this.y = y; this.xVelocity = 0; this.yVelocity = 0;
-    this.gravity = .5; this.onGround = false; this.spriteWidth = 50; this.spriteHeight = 50;
+    this.gravity = .5; this.onGround = false; this.spriteWidth = SPRITE_WIDTH; this.spriteHeight = SPRITE_HEIGHT;
   }
   applyGravity(nearby) {
     this.onGround = false;
-    this.yVelocity += this.gravity;
-    let nextY = this.y + this.yVelocity;
+    const velocity = this.yVelocity += this.gravity;
+    let nextY = this.y + velocity;
     for (const p of nearby) {
       const overlapX = this.x + this.spriteWidth > p.x && this.x < p.x + p.size;
-      if (this.yVelocity > 0 && overlapX && this.y + this.spriteHeight <= p.y && nextY + this.spriteHeight >= p.y) {
+      if (velocity > 0 && overlapX && this.y + this.spriteHeight <= p.y && nextY + this.spriteHeight >= p.y) {
         nextY = p.y - this.spriteHeight; this.yVelocity = 0; this.onGround = true;
       }
-      if (this.yVelocity < 0 && overlapX && this.y >= p.y + p.size && nextY <= p.y + p.size) {
+      if (velocity < 0 && overlapX && this.y >= p.y + p.size && nextY <= p.y + p.size) {
         nextY = p.y + p.size; this.yVelocity = 0;
       }
     }
@@ -582,7 +612,7 @@ class Character {
     this.x = constrain(this.x, 0, world.cols * TILE_SIZE);
     this.x += this.xVelocity;
     for (const p of nearby) {
-      const overlap = this.x < p.x + p.size && this.x + this.spriteWidth > p.x && this.y < p.y + p.size && this.y + this.spriteHeight > p.y;
+      const overlap = rectanglesOverlap(this.x, this.y, this.spriteWidth, this.spriteHeight, p.x, p.y, p.size, p.size);
       if (!overlap) continue;
       if (this.xVelocity > 0) this.x = p.x - this.spriteWidth;
       else if (this.xVelocity < 0) this.x = p.x + p.size;
@@ -625,28 +655,31 @@ class Mage extends Character {
     }
     image(sprite, this.x, this.y + offset, 50, 50); pop();
   }
-  isSprinting() { return frameCount - this.sprintStartFrame < this.sprintDurationFrames; }
+  isSprinting() { return gameFrame - this.sprintStartFrame < this.sprintDurationFrames; }
   triggerSprint() {
-    if (this.isSprinting() || frameCount - this.lastSprintFrame < getPlayerCooldown(BASE_SPRINT_COOLDOWN)) return;
+    if (!isGamePlaying() || this.isSprinting() || this.cooldownProgress("sprint") < 1) return;
     if (heldKeys.has("ArrowLeft") || hasTouchAction("left")) this.facingRight = false;
     else if (heldKeys.has("ArrowRight") || hasTouchAction("right")) this.facingRight = true;
-    this.sprintStartFrame = this.lastSprintFrame = frameCount;
+    this.sprintStartFrame = this.lastSprintFrame = gameFrame;
   }
-  resetSprintState() { this.sprintStartFrame = -this.sprintDurationFrames; this.lastSprintFrame = -getPlayerCooldown(BASE_SPRINT_COOLDOWN); }
+  resetSprintState() { this.sprintStartFrame = gameFrame - this.sprintDurationFrames; this.lastSprintFrame = gameFrame - getPlayerCooldown(BASE_SPRINT_COOLDOWN); }
   shootWater() {
-    if (state !== GameState.PLAYING || frameCount - this.lastShotFrame < getPlayerCooldown(BASE_SHOT_COOLDOWN)) return;
+    if (!isGamePlaying() || this.cooldownProgress("shoot") < 1) return;
     const direction = this.facingRight ? 1 : -1;
     waterProjectiles.push(new WaterProjectile(direction > 0 ? this.x + 50 : this.x - 20, this.y + 20, direction * 10));
-    this.lastShotFrame = frameCount;
+    this.lastShotFrame = gameFrame;
+  }
+  cooldownProgress(action) {
+    const shot = action === "shoot";
+    const cooldown = getPlayerCooldown(shot ? BASE_SHOT_COOLDOWN : BASE_SPRINT_COOLDOWN);
+    return constrain((gameFrame - (shot ? this.lastShotFrame : this.lastSprintFrame)) / cooldown, 0, 1);
   }
   drawCooldownTime() {
-    const shotCooldown = getPlayerCooldown(BASE_SHOT_COOLDOWN);
-    const sprintCooldown = getPlayerCooldown(BASE_SPRINT_COOLDOWN);
     const panelX = 686, panelY = 16;
     noStroke(); fill(255, 255, 255, 240); rect(panelX, panelY, 294, 86, 10);
     const items = [
-      { x: panelX + 14, label: "X", name: I18n.t("hud.shot"), percent: constrain((frameCount - this.lastShotFrame) / shotCooldown, 0, 1) },
-      { x: panelX + 154, label: "Z", name: I18n.t("hud.sprint"), percent: constrain((frameCount - this.lastSprintFrame) / sprintCooldown, 0, 1) }
+      { x: panelX + 14, label: "X", name: I18n.t("hud.shot"), percent: this.cooldownProgress("shoot") },
+      { x: panelX + 154, label: "Z", name: I18n.t("hud.sprint"), percent: this.cooldownProgress("sprint") }
     ];
     textFont("Trebuchet MS");
     for (const item of items) {
@@ -676,10 +709,10 @@ class Enemy extends Character {
     if (!this.isAlive()) { this.xVelocity = 0; return; }
     if (this.waitingToTurn) {
       this.xVelocity = 0;
-      if (millis() - this.waitTurnAround >= this.turnAroundSpeed) { this.direction *= -1; this.waitingToTurn = false; }
+      if (gameTime - this.waitTurnAround >= this.turnAroundSpeed) { this.direction *= -1; this.waitingToTurn = false; }
       this.enemyfacingRight = this.direction > 0; return;
     }
-    if (this.shouldTurnAround()) { this.waitTurnAround = millis(); this.waitingToTurn = true; this.xVelocity = 0; return; }
+    if (this.shouldTurnAround()) { this.waitTurnAround = gameTime; this.waitingToTurn = true; this.xVelocity = 0; return; }
     this.xVelocity = this.patrolSpeed * this.direction;
     this.enemyfacingRight = this.direction > 0;
   }
@@ -693,18 +726,18 @@ class Enemy extends Character {
     return false;
   }
   tryShootAt(target) {
-    if (!this.isAlive() || frameCount - this.lastShotFrame < this.shootCooldownFrames) return;
+    if (!this.isAlive() || gameFrame - this.lastShotFrame < this.shootCooldownFrames) return;
     if (abs((target.y + 25) - (this.y + 25)) > 200) return;
     const direction = this.enemyfacingRight ? 1 : -1;
     const projectileSpeed = getEnemyProjectileSpeed();
     projectiles.push(new Projectile(direction > 0 ? this.x + 50 : this.x - 24, this.y + 17.5, direction * projectileSpeed));
-    this.enemyfacingRight = direction > 0; this.lastShotFrame = frameCount;
+    this.lastShotFrame = gameFrame;
   }
   takeDamage(amount) {
     if (!this.isAlive()) return;
     this.health = max(0, this.health - amount);
     if (this.health === 0) {
-      this.deathTime = millis();
+      this.deathTime = gameTime;
       this.dropBone();
     }
   }
@@ -716,7 +749,7 @@ class Enemy extends Character {
     if (this.droppedBone) collectibles = collectibles.filter(item => item !== this.droppedBone);
     this.health = this.maxHealth; this.xVelocity = this.yVelocity = 0; this.direction = 1;
     this.enemyfacingRight = true; this.waitTurnAround = 0; this.waitingToTurn = false;
-    this.lastShotFrame = -this.shootCooldownFrames; this.droppedBone = null; this.deathTime = null;
+    this.lastShotFrame = gameFrame - this.shootCooldownFrames; this.droppedBone = null; this.deathTime = null; this.onGround = false;
   }
   display() {
     if (!this.isAlive()) return;
@@ -762,26 +795,23 @@ class Collectible {
 
 class Projectile {
   static SIZE = 24;
+  static SPELL = "ember";
   constructor(x, y, xVelocity) { Object.assign(this, { x, y, xVelocity }); }
+  get size() { return this.constructor.SIZE; }
   update() { this.x += this.xVelocity; }
-  display() { drawSpell(this.x, this.y, Projectile.SIZE, this.xVelocity, false); }
-  hitsWall() { return world.isSolidAt(this.xVelocity > 0 ? this.x + Projectile.SIZE : this.x, this.y + Projectile.SIZE / 2); }
-  isOffWorld() { return this.x + Projectile.SIZE < 0 || this.x > worldWidth || this.y + Projectile.SIZE < 0 || this.y > worldHeight; }
-  collidesWith(c) { return rectanglesOverlap(this.x, this.y, Projectile.SIZE, Projectile.SIZE, c.x, c.y, c.spriteWidth, c.spriteHeight); }
+  display() { drawSpell(this.x, this.y, this.size, this.xVelocity, this.constructor.SPELL); }
+  hitsWall() { return world.overlapsSolid(this.x, this.y, this.size, this.size); }
+  isOffWorld() { return this.x + this.size < 0 || this.x > worldWidth || this.y + this.size < 0 || this.y > worldHeight; }
+  collidesWith(target) {
+    const width = target instanceof Projectile ? target.size : target.spriteWidth;
+    const height = target instanceof Projectile ? target.size : target.spriteHeight;
+    return rectanglesOverlap(this.x, this.y, this.size, this.size, target.x, target.y, width, height);
+  }
 }
 
-class WaterProjectile {
+class WaterProjectile extends Projectile {
   static SIZE = 20;
-  constructor(x, y, xVelocity) { Object.assign(this, { x, y, xVelocity }); }
-  update() { this.x += this.xVelocity; }
-  display() { drawSpell(this.x, this.y, WaterProjectile.SIZE, this.xVelocity, true); }
-  hitsWall() { return world.isSolidAt(this.xVelocity > 0 ? this.x + WaterProjectile.SIZE : this.x, this.y + WaterProjectile.SIZE / 2); }
-  isOffWorld() { return this.x + WaterProjectile.SIZE < 0 || this.x > worldWidth || this.y + WaterProjectile.SIZE < 0 || this.y > worldHeight; }
-  collidesWith(target) {
-    const size = target instanceof Projectile ? Projectile.SIZE : target.spriteWidth;
-    const height = target instanceof Projectile ? Projectile.SIZE : target.spriteHeight;
-    return rectanglesOverlap(this.x, this.y, WaterProjectile.SIZE, WaterProjectile.SIZE, target.x, target.y, size, height);
-  }
+  static SPELL = "water";
 }
 
 // Small, transparent pixel sprites share the characters' scale and muted palette.
@@ -796,8 +826,8 @@ const SPELL_SPRITES = Object.freeze({
   }
 });
 
-function drawSpell(x, y, size, velocity, water) {
-  const sprite = SPELL_SPRITES[water ? "water" : "ember"];
+function drawSpell(x, y, size, velocity, kind) {
+  const sprite = SPELL_SPRITES[kind];
   const pixel = floor(size / 8), inset = (size - pixel * 8) / 2;
   push(); noStroke();
   // Render inside the original hitbox; only the sprite changes, never the shot.
@@ -822,7 +852,6 @@ class World {
     this.grid = SpriteMap.parseCSV(lines.join("\n"));
     this.rows = this.grid.length; this.cols = this.grid[0].length;
     this.tileGrid = Array.from({ length: this.cols }, () => Array(this.rows).fill(null));
-    this.enemySpawnX = null;
     this.enemySpawns = [];
     this.createPlatforms();
   }
@@ -838,7 +867,6 @@ class World {
         const [img, type] = collectiblesByCode[value];
         collectibles.push(new Collectible(col * TILE_SIZE, row * TILE_SIZE, img, TILE_SIZE, type));
       } else if (value === 9) {
-        this.enemySpawnX = col * TILE_SIZE;
         this.enemySpawns.push({ x: col * TILE_SIZE, y: row * TILE_SIZE });
       }
     }));
@@ -851,7 +879,8 @@ class World {
   getNearByTiles(c) {
     const result = [];
     const left = max(0, floor(c.x / TILE_SIZE) - 1), right = min(this.cols - 1, floor((c.x + c.spriteWidth) / TILE_SIZE) + 1);
-    const top = max(0, floor(c.y / TILE_SIZE) - 1), bottom = min(this.rows - 1, floor((c.y + c.spriteHeight) / TILE_SIZE) + 1);
+    const nextY = c.y + c.yVelocity + c.gravity;
+    const top = max(0, floor(min(c.y, nextY) / TILE_SIZE) - 1), bottom = min(this.rows - 1, floor((max(c.y, nextY) + c.spriteHeight) / TILE_SIZE) + 1);
     for (let col = left; col <= right; col++) for (let row = top; row <= bottom; row++) if (this.tileGrid[col][row]) result.push(this.tileGrid[col][row]);
     return result;
   }
@@ -859,10 +888,16 @@ class World {
     const col = floor(x / TILE_SIZE), row = floor(y / TILE_SIZE);
     return col >= 0 && col < this.cols && row >= 0 && row < this.rows && this.tileGrid[col][row] !== null;
   }
+  overlapsSolid(x, y, w, h) {
+    const left = max(0, floor(x / TILE_SIZE)), right = min(this.cols - 1, Math.ceil((x + w) / TILE_SIZE) - 1);
+    const top = max(0, floor(y / TILE_SIZE)), bottom = min(this.rows - 1, Math.ceil((y + h) / TILE_SIZE) - 1);
+    for (let col = left; col <= right; col++) for (let row = top; row <= bottom; row++) if (this.tileGrid[col][row]) return true;
+    return false;
+  }
   findGroundY(x) {
     const col = constrain(floor((x + SPRITE_WIDTH / 2) / TILE_SIZE), 0, this.cols - 1);
     for (let row = 0; row < this.rows; row++) if (this.tileGrid[col][row]) return this.tileGrid[col][row].y - SPRITE_HEIGHT;
     return this.rows * TILE_SIZE - SPRITE_HEIGHT;
   }
-  getEnemySpawnX() { return this.enemySpawnX ?? 600; }
+  getEnemySpawnX() { return this.enemySpawns.at(-1)?.x ?? 600; }
 }

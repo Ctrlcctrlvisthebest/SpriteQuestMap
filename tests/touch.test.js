@@ -4,15 +4,15 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const SpriteMap = require("../map-format.js");
+const { createGameContext } = require("./helpers/game.js");
 
 function setup() {
   function element(action) {
-    const classes = new Set(), captures = new Set(), listeners = {};
+    const classes = new Set(), captures = new Set(), listeners = {}, styles = new Map(), attributes = new Map();
     return {
-      dataset: { action }, hidden: false, textContent: "", value: "NORMAL", style: { setProperty() {} },
+      dataset: { action }, hidden: false, textContent: "", value: "NORMAL", style: { setProperty: (k,v) => styles.set(k,v), getPropertyValue: k => styles.get(k) },
       classList: { add: n => classes.add(n), remove: n => classes.delete(n), contains: n => classes.has(n), toggle(n, on) { on ? classes.add(n) : classes.delete(n); } },
-      setAttribute() {}, scrollIntoView() {}, getBoundingClientRect: () => ({ height: 52 }),
+      setAttribute: (k,v) => attributes.set(k,v), getAttribute: k => attributes.get(k), scrollIntoView() {}, getBoundingClientRect: () => ({ height: 52 }),
       setPointerCapture: id => captures.add(id), hasPointerCapture: id => captures.has(id),
       releasePointerCapture(id) { captures.delete(id); this.emit("lostpointercapture", { pointerId: id }); },
       addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
@@ -27,22 +27,16 @@ function setup() {
   const window = { ...element(), matchMedia: () => media };
   const document = { ...element(), body: element(), getElementById: id => ids[id] };
   const pending = [];
-  const context = vm.createContext({ assert, SpriteMap, I18n: require("../i18n.js"), window, document,
-    floor: Math.floor, round: Math.round, min: Math.min, max: Math.max,
-    constrain: (n, lo, hi) => Math.max(lo, Math.min(hi, n)), millis: () => 5000, frameCount: 100,
-    userStartAudio() {}, getAudioContext: () => ({ state: "suspended" }),
+  const context = createGameContext({ window, document,
     getComputedStyle: () => ({ position: "static" }), ResizeObserver: class { observe() {} },
     requestAnimationFrame: fn => pending.push(fn), queueMicrotask: fn => pending.push(fn), setTimeout: fn => pending.push(fn)
   });
-  for (const file of ["sketch.js", "touch.js"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "touch.js"), "utf8"), context);
   pending.splice(0).forEach(fn => fn());
   vm.runInContext(`
-    gameReady = true; mage = new Mage(250, 400);
-    for (const tile of SpriteMap.tiles) if (tile.image) images[tile.image] = {};
-    mapLines[1] = ["0,0,0,0,0,0,0,0,0,6", "2,2,2,2,2,2,2,2,2,2"];
     state = GameState.PLAYING; TouchUI.sync();
   `, context);
-  return { context, buttons, ids, window, document, media, run: source => vm.runInContext(source, context) };
+  return { context, buttons, ids, window, document, media, pending, run: source => vm.runInContext(source, context) };
 }
 
 test("multiple fingers can move, jump and shoot; cancelling one does not cancel the others", () => {
@@ -74,7 +68,7 @@ test("two pointers on the same direction and a physical key release independentl
 test("hold-to-fire respects the original cooldown, and sprint follows touch direction", () => {
   const ui = setup();
   ui.buttons.shoot.emit("pointerdown", { pointerId: 1 });
-  ui.run("mage.shootWater(); assert.equal(waterProjectiles.length, 1); frameCount += BASE_SHOT_COOLDOWN; if (hasTouchAction('shoot')) mage.shootWater(); assert.equal(waterProjectiles.length, 2)");
+  ui.run("mage.shootWater(); assert.equal(waterProjectiles.length, 1); gameFrame += BASE_SHOT_COOLDOWN; if (hasTouchAction('shoot')) mage.shootWater(); assert.equal(waterProjectiles.length, 2)");
   ui.buttons.left.emit("pointerdown", { pointerId: 2 });
   ui.buttons.sprint.emit("pointerdown", { pointerId: 3 });
   ui.run("mage.setVelocity(); assert.equal(mage.xVelocity, -16); assert.equal(mage.isSprinting(), true)");
@@ -113,4 +107,27 @@ test("classic victory exposes Endless mode but a custom map victory does not", (
   assert.equal(ui.ids["touch-endless"].hidden, true);
   ui.ids["touch-endless"].emit("click");
   ui.run("assert.equal(endlessMode, false)");
+});
+
+test("an old assistive-click timer cannot release an action started after a reset", () => {
+  const ui = setup();
+  ui.pending.length = 0;
+  ui.buttons.left.emit('click', { detail: 0 });
+  const oldTimer = ui.pending.pop();
+  ui.run('clearInputState()');
+  ui.buttons.right.emit('click', { detail: 0 });
+  oldTimer();
+  ui.run("mage.setVelocity(); assert.equal(mage.xVelocity, 7)");
+  ui.pending.pop()();
+  ui.run("mage.setVelocity(); assert.equal(mage.xVelocity, 0)");
+});
+
+test("Space and Enter held on a touch button release independently", () => {
+  const ui = setup();
+  ui.buttons.left.emit('keydown', { code: 'Space' });
+  ui.buttons.left.emit('keydown', { code: 'Enter' });
+  ui.buttons.left.emit('keyup', { code: 'Space' });
+  ui.run("mage.setVelocity(); assert.equal(mage.xVelocity, -7)");
+  ui.buttons.left.emit('blur');
+  ui.run("mage.setVelocity(); assert.equal(mage.xVelocity, 0)");
 });

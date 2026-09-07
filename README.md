@@ -115,3 +115,11 @@ Touch controls appear on small screens and devices with a coarse pointer. Hold L
 Rotate to landscape and select **Fullscreen** for a larger playfield. Controls sit beside the canvas in landscape fullscreen and below it in portrait. The game keeps its 1500 × 800 proportions and preserves progress when rotating or leaving fullscreen. Unsupported native fullscreen falls back to filling the browser window.
 
 手机可同时按住移动键和跳跃 / 水弹 / 冲刺，长按水弹会按原有冷却连续发射。横屏全屏时，按键位于画面两侧；竖屏时按键在画面下方。金币、等级、经验与技能冷却以适合手机的尺寸显示。编辑器支持横向选择素材、拖动绘制、「移动」工具拖动画布、缩放、撤销，以及原有的 CSV 导入导出。
+
+## Reliability checks / 防呆检查
+
+Run `node --test tests/*.test.js` to check CSV limits and malformed input, import races, undo/redo, collision boundaries, paused game timers, mobile input, fullscreen fallbacks, and both languages. The suite also round-trips 100 deterministically generated maps and checks invalid cells at their exact row and column. Tests use Node's built-in runner and require no extra dependencies.
+
+Delayed CSV or template loads preserve edits made while loading; the latest import takes precedence. Renaming has its own undo step. Game timers pause in the editor and hidden tabs. Simultaneous hazards apply one damage penalty before pickups, and collision checks account for fast falls and projectile corners.
+
+导入或载入期间的新编辑会保留，旧请求不能覆盖新地图。重命名可独立撤销；进入编辑器或切到后台会暂停游戏计时。测试还覆盖无效尺寸、超大文件、草稿存储失败、多指取消、重复全屏操作与双语切换。

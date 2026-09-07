@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 const path = require("node:path");
 const M = require("../map-format.js");
+const { createGameContext: gameContext } = require("./helpers/game.js");
 const root = path.resolve(__dirname, "..");
 
 test("every original CSV imports and round-trips without losing tile positions", () => {
@@ -48,21 +49,6 @@ test("flood fill respects boundaries and handles maximum map size without recurs
   assert.ok(large.every(row => row.every(code => code === 2)));
 });
 
-function gameContext() {
-  const context = vm.createContext({
-    assert, SpriteMap: M, I18n: require("../i18n.js"), floor: Math.floor, round: Math.round, min: Math.min, max: Math.max,
-    constrain: (n, low, high) => Math.max(low, Math.min(high, n)), millis: () => 5000,
-    frameCount: 100, sounds: {}, userStartAudio: () => {}, getAudioContext: () => ({ state: "suspended" })
-  });
-  vm.runInContext(fs.readFileSync(path.join(root, "sketch.js"), "utf8"), context);
-  vm.runInContext(`
-    gameReady = true;
-    mage = new Mage(250, 400);
-    for (const tile of SpriteMap.tiles) if (tile.image) images[tile.image] = {};
-    mapLines[1] = ["0,0,0,0,0,0,0,0,0,6", "2,2,2,2,2,2,2,2,2,2"];
-  `, context);
-  return context;
-}
 test("custom play uses exact player/enemy positions, completes once, and restarts the same map", () => {
   vm.runInContext(`
     const grid = SpriteMap.createMap(12, 6);
@@ -154,4 +140,20 @@ test("frost edges follow exposed ground and leave platform and hazard bounds unc
     assert.equal(lava.collidesWith({x: 150, y: 0, spriteWidth: 50, spriteHeight: 50}), true);
     assert.equal(lava.collidesWith({x: 200, y: 0, spriteWidth: 50, spriteHeight: 50}), false);
   `, gameContext());
+});
+
+test("CSV limit applies to UTF-8 bytes, not just JavaScript string length", () => {
+  assert.throws(() => M.parseCSV('\u3000'.repeat(350000) + '0,6'), /1 MB/);
+});
+
+test("deterministic malformed-cell and round-trip checks cover varied map dimensions", () => {
+  let seed = 12345;
+  const random = n => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed % n; };
+  for (let iteration = 0; iteration < 100; iteration++) {
+    const rows = 1 + random(80), cols = 1 + random(120);
+    const grid = Array.from({length:rows}, () => Array.from({length:cols}, () => random(11)));
+    assert.deepEqual(M.parseCSV(M.toCSV(grid)), grid);
+    const row = random(rows), col = random(cols); grid[row][col] = 'invalid';
+    assert.throws(() => M.parseCSV(M.toCSV(grid)), new RegExp('row '+(row+1)+', column '+(col+1)));
+  }
 });

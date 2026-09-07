@@ -12,12 +12,16 @@ function setup(mode = "native") {
     return { listeners: {}, attributes: {}, hidden: false, inert: false,
       classList: { toggle(name, on) { on ? classes.add(name) : classes.delete(name); }, contains(name) { return classes.has(name); } },
       setAttribute(name, value) { this.attributes[name] = value; },
-      focus() { this.focused = true; },
+      focus() { this.focused = true; document.activeElement = this; },
+      getClientRects() { return this.hidden ? [] : [{}]; },
       addEventListener(name, handler) { this.listeners[name] = handler; }
     };
   }
   const shell = element(), enter = element(), exit = element();
   exit.hidden = true;
+  const action = element(), hiddenAction = element();
+  hiddenAction.hidden = true;
+  shell.querySelectorAll = () => [exit, hiddenAction, action];
   const background = [element(), element()];
   background[1].inert = true;
   const document = { ...element(), fullscreenElement: null,
@@ -36,7 +40,7 @@ function setup(mode = "native") {
     document.listeners.fullscreenchange();
   };
   vm.runInNewContext(source, { document, I18n: require("../i18n.js"), clearInputState() {} });
-  return { shell, enter, exit, background, document, requests: () => requests };
+  return { shell, enter, exit, action, background, document, requests: () => requests };
 }
 
 test("native fullscreen enters and exits, restoring background accessibility", async () => {
@@ -86,4 +90,16 @@ test("failed native exit retains the visible exit control", async () => {
   await ui.exit.listeners.click();
   assert.equal(ui.exit.hidden, false);
   assert.equal(ui.shell.classList.contains("is-expanded"), true);
+});
+
+
+test("fallback fullscreen cycles focus through visible touch controls and skips hidden buttons", async () => {
+  const ui = setup("unsupported");
+  await ui.enter.listeners.click();
+  const tab = shiftKey => ui.document.listeners.keydown({ key: "Tab", shiftKey, preventDefault() {} });
+  tab(true); assert.equal(ui.document.activeElement, ui.action);
+  tab(false); assert.equal(ui.document.activeElement, ui.exit);
+  tab(false); assert.equal(ui.document.activeElement, ui.action);
+  tab(false); assert.equal(ui.document.activeElement, ui.exit);
+  tab(true); assert.equal(ui.document.activeElement, ui.action);
 });

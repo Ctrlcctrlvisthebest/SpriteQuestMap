@@ -13,11 +13,16 @@
     return (document.fullscreenElement || document.webkitFullscreenElement) === shell;
   }
 
+  function updateExitLabel() {
+    const touch = typeof touchLayout !== "undefined" && touchLayout;
+    exitButton.textContent = I18n.t(touch ? "fullscreen.touchExit" : windowFullscreen ? "fullscreen.windowExit" : "fullscreen.exit");
+  }
+
   function syncFullscreen() {
     const active = isNativeFullscreen() || windowFullscreen;
     shell.classList.toggle("is-expanded", active);
     exitButton.hidden = !active;
-    exitButton.textContent = I18n.t(windowFullscreen ? "fullscreen.windowExit" : "fullscreen.exit");
+    updateExitLabel();
     enterButton.setAttribute("aria-pressed", String(active));
     surroundingUI.forEach((element, index) => { element.inert = active || originalInert[index]; });
     // Resizing the existing canvas preserves the level, score, and character position.
@@ -60,7 +65,7 @@
     }
   }
 
-  document.addEventListener("languagechange", () => { exitButton.textContent = I18n.t(windowFullscreen ? "fullscreen.windowExit" : "fullscreen.exit"); });
+  document.addEventListener("languagechange", updateExitLabel);
   enterButton.addEventListener("click", enterFullscreen);
   exitButton.addEventListener("click", exitFullscreen);
   document.addEventListener("fullscreenchange", syncFullscreen);
@@ -72,7 +77,10 @@
     }
     if (windowFullscreen && event.key === "Tab") {
       event.preventDefault();
-      exitButton.focus();
+      const controls = [...shell.querySelectorAll("button:not(:disabled), select:not(:disabled), a[href]")].filter(element => element.getClientRects().length);
+      const current = controls.indexOf(document.activeElement);
+      const next = current < 0 ? (event.shiftKey ? controls.length - 1 : 0) : (current + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+      (controls[next] || exitButton).focus();
     }
   });
 })();

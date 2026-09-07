@@ -11,6 +11,15 @@
   let hover = null, stroke = null, lastCell = null, drawingPointer = null, strokeCode = null, strokeIsFill = false;
   let undo = [], redo = [], importMode = "edit", renderPending = false, messageTimer, pausedAt = null;
   const sprites = {};
+  let pan = null, focusSpawnPending = false;
+  const touchEditor = window.matchMedia("(max-width: 900px), (pointer: coarse)");
+  function resetZoom() {
+    $("editor-zoom").value = touchEditor.matches ? "32" : "fit";
+    tileSize = 32;
+    focusSpawnPending = touchEditor.matches;
+    viewport.scrollTo(0, 0);
+  }
+  resetZoom();
 
   function renderMessage() {
     if (activeMessage) $("app-message").querySelector("span").textContent = typeof activeMessage === "string" ? I18n.t(activeMessage) : I18n.errorText(activeMessage);
@@ -72,12 +81,14 @@
     grid = SpriteMap.clone(next); nameInput.value = name;
     hover = null;
     $("map-cols").value = grid[0].length; $("map-rows").value = grid.length;
-    $("editor-zoom").value = "fit";
-    viewport.scrollTo(0, 0);
+    resetZoom();
     commit(before); requestRender(); updateControls();
   }
   function setTool(next) {
+    finishStroke();
     tool = next;
+    viewport.classList.toggle("is-panning", tool === "pan");
+    setHover(null);
     document.querySelectorAll("[data-tool]").forEach(button => {
       button.classList.toggle("active", button.dataset.tool === tool);
       button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
@@ -94,7 +105,7 @@
     $("selected-description").removeAttribute("data-i18n");
     $("selected-name").textContent = SpriteMap.byCode[code].name;
     $("selected-description").textContent = SpriteMap.byCode[code].description;
-    if (tool === "erase" || code === 10) setTool("paint");
+    if (tool === "erase" || tool === "pan" || code === 10) setTool("paint");
     requestRender();
   }
   for (const group of ["terrain", "objects", "characters"]) {
@@ -132,6 +143,12 @@
     }
     const w = grid[0].length * tileSize, h = grid.length * tileSize;
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    if (focusSpawnPending && viewport.clientWidth && viewport.clientHeight) {
+      const spawn = SpriteMap.positions(grid, 10)[0] || { col: 2, row: Math.max(0, grid.length - 4) };
+      focusSpawnPending = false;
+      // Wait for canvas dimensions and scrollbars to settle before centering the spawn.
+      requestAnimationFrame(() => viewport.scrollTo((spawn.col + .5) * tileSize - viewport.clientWidth / 2, (spawn.row + .5) * tileSize - viewport.clientHeight / 2));
+    }
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = "#64c8ff"; ctx.fillRect(0, 0, w, h);
     grid.forEach((row, y) => row.forEach((value, x) => drawTile(value, x, y)));
@@ -141,7 +158,7 @@
       for (let y = 0; y <= h; y += tileSize) { ctx.moveTo(0, y + .5); ctx.lineTo(w, y + .5); }
       ctx.stroke();
     }
-    if (hover) {
+    if (hover && tool !== "pan") {
       const code = tool === "erase" ? 0 : selected;
       ctx.globalAlpha = .55;
       if (code) drawTile(code, hover.col, hover.row);
@@ -166,7 +183,7 @@
   }
   function setHover(cell) {
     hover = cell;
-    $("cursor-position").textContent = cell ? I18n.t("editor.cursor", { col: cell.col + 1, row: cell.row + 1, tile: SpriteMap.byCode[grid[cell.row][cell.col]].name }) : I18n.t("editor.paintHelp");
+    $("cursor-position").textContent = cell ? I18n.t("editor.cursor", { col: cell.col + 1, row: cell.row + 1, tile: SpriteMap.byCode[grid[cell.row][cell.col]].name }) : I18n.t(tool === "pan" ? "editor.panHelp" : touchEditor.matches ? "editor.touchHelp" : "editor.paintHelp");
     requestRender();
   }
   function put(cell, code) {
@@ -180,7 +197,31 @@
       put({ col: Math.round(from.col + (to.col - from.col) * fraction), row: Math.round(from.row + (to.row - from.row) * fraction) }, code);
     }
   }
+  function finishPan() {
+    if (!pan) return;
+    const pointer = pan.pointer;
+    pan = null;
+    viewport.classList.remove("is-dragging");
+    if (viewport.hasPointerCapture(pointer)) viewport.releasePointerCapture(pointer);
+  }
+  viewport.addEventListener("pointerdown", event => {
+    if (tool !== "pan" || event.button !== 0 || pan) return;
+    event.preventDefault();
+    canvas.focus({ preventScroll: true });
+    pan = { pointer: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+    viewport.classList.add("is-dragging");
+    viewport.setPointerCapture(event.pointerId);
+  });
+  viewport.addEventListener("pointermove", event => {
+    if (!pan || event.pointerId !== pan.pointer) return;
+    event.preventDefault();
+    viewport.scrollTo(pan.left + pan.x - event.clientX, pan.top + pan.y - event.clientY);
+  });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    viewport.addEventListener(type, event => { if (pan?.pointer === event.pointerId) finishPan(); });
+  }
   function finishStroke() {
+    finishPan();
     if (!stroke) return;
     const before = stroke, pointer = drawingPointer;
     stroke = null; drawingPointer = null; lastCell = null;
@@ -189,7 +230,7 @@
   }
   canvas.addEventListener("contextmenu", event => event.preventDefault());
   canvas.addEventListener("pointerdown", event => {
-    if (drawingPointer !== null || ![0, 2].includes(event.button)) return;
+    if (tool === "pan" || drawingPointer !== null || ![0, 2].includes(event.button)) return;
     const cell = cellAt(event); if (!cell) return;
     event.preventDefault(); canvas.focus({ preventScroll: true });
     stroke = snapshot(); drawingPointer = event.pointerId;
@@ -201,7 +242,7 @@
     lastCell = cell; setHover(cell);
   });
   canvas.addEventListener("pointermove", event => {
-    if (drawingPointer !== null && event.pointerId !== drawingPointer) return;
+    if (tool === "pan" || (drawingPointer !== null && event.pointerId !== drawingPointer)) return;
     const cell = cellAt(event);
     if (stroke && cell && !strokeIsFill) {
       paintLine(lastCell || cell, cell, strokeCode); lastCell = cell;
@@ -209,19 +250,24 @@
     if (!cell) lastCell = null;
     setHover(cell);
   });
-  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(type, finishStroke);
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(type, event => { if (event.pointerId === drawingPointer) finishStroke(); });
   canvas.addEventListener("pointerleave", () => { if (!stroke) setHover(null); });
   window.addEventListener("blur", finishStroke);
+  window.addEventListener("resize", finishStroke);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) finishStroke(); });
   document.querySelectorAll("[data-tool]").forEach(button => { button.onclick = () => setTool(button.dataset.tool); });
   $("editor-undo").onclick = undoEdit; $("editor-redo").onclick = redoEdit;
   $("show-grid").onchange = requestRender;
   $("editor-zoom").onchange = () => {
+    finishStroke();
+    focusSpawnPending = false;
     if ($("editor-zoom").value === "fit") { render(); viewport.scrollTo(0, 0); return; }
     const ratio = Number($("editor-zoom").value) / tileSize;
-    const centerX = (viewport.scrollLeft + viewport.clientWidth / 2) * ratio;
-    const centerY = (viewport.scrollTop + viewport.clientHeight / 2) * ratio;
+    const canvasBounds = canvas.getBoundingClientRect(), viewBounds = viewport.getBoundingClientRect();
+    const centerX = (viewBounds.left + viewport.clientLeft + viewport.clientWidth / 2 - canvasBounds.left) * ratio;
+    const centerY = (viewBounds.top + viewport.clientTop + viewport.clientHeight / 2 - canvasBounds.top) * ratio;
     tileSize = Number($("editor-zoom").value); render();
-    viewport.scrollTo(centerX - viewport.clientWidth / 2, centerY - viewport.clientHeight / 2);
+    viewport.scrollTo(Math.max(0, (viewport.clientWidth - canvas.width) / 2) + centerX - viewport.clientWidth / 2, centerY - viewport.clientHeight / 2);
   };
   new ResizeObserver(requestRender).observe(viewport);
   nameInput.addEventListener("input", persist);
@@ -253,6 +299,7 @@
     }
     document.activeElement?.blur();
     if (editing) requestRender();
+    if (typeof TouchUI !== "undefined") TouchUI.sync();
   }
   function updateGameBar() {
     $("game-map-name").textContent = customMap ? I18n.t("game.custom", { name: customMap.name }) : I18n.t("game.classic");
@@ -318,6 +365,7 @@
     if (event.code === "KeyB") setTool("paint");
     if (event.code === "KeyE") setTool("erase");
     if (event.code === "KeyG") setTool("fill");
+    if (event.code === "KeyH") setTool("pan");
     if (event.target !== canvas) return;
     const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.code];
     if (delta) {
@@ -330,6 +378,7 @@
       if (y < viewport.scrollTop) viewport.scrollTop = y;
       if (y + tileSize > viewport.scrollTop + viewport.clientHeight) viewport.scrollTop = y + tileSize - viewport.clientHeight;
     }
+    if (tool === "pan") return;
     if (["Space", "Enter", "Backspace", "Delete"].includes(event.code)) {
       event.preventDefault(); if (event.repeat) return;
       const cell = hover || { col: 0, row: 0 }, before = snapshot();
@@ -353,6 +402,6 @@
     $("selected-description").textContent = SpriteMap.byCode[selected].description;
     updateControls(); updateGameBar(); setHover(hover); setDraftStatus(draftStatus); renderMessage();
   });
-  selectTile(selected); updateControls(); requestRender();
+  selectTile(selected); updateControls(); setHover(null); requestRender();
   if (document.body.dataset.startView === "editor") showView(true);
 })();

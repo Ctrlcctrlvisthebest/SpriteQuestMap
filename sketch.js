@@ -10,6 +10,7 @@ const GAME_WIDTH = 1500;
 const GAME_HEIGHT = 800;
 const SCENE = Object.freeze({ sky: "#e3f0f7", far: "#c7dfe9", near: "#d3e8ed", snow: "#f8fcff", ink: "#233747", muted: "#526d7d", blue: "#305be8", coral: "#c96a51" });
 let reducedMotion = false;
+let touchLayout = false;
 const ENEMY_SPAWN_OFFSETS = [0, 250, -250, 500, -500];
 const BASE_MOVE_SPEED = 7;
 const BASE_SHOT_COOLDOWN = 18;
@@ -22,6 +23,8 @@ let timerStart = 0;
 const waitTime = 1000;
 let world, mage, enemies = [], collectibles = [], projectiles = [], waterProjectiles = [];
 const heldKeys = new Set();
+// Keep touch pointers separate from keyboard keys so releasing one never cancels another.
+const touchActions = new Map();
 let jumpQueued = false;
 let resetMageRequested = false;
 let worldWidth = 0, worldHeight = 0;
@@ -72,6 +75,7 @@ function draw() {
   else if (state === GameState.PLAYING) drawPlaying();
   else if (state === GameState.VICTORY) drawVictoryScreen();
   else drawLoseScreen();
+  if (typeof TouchUI !== "undefined") TouchUI.sync();
 }
 
 function drawPlaying() {
@@ -81,6 +85,7 @@ function drawPlaying() {
   world.drawTiles();
   const nearby = world.getNearByTiles(mage);
   mage.setVelocity();
+  if (hasTouchAction("shoot")) mage.shootWater();
   mage.handleHorizontalMovement(nearby);
   mage.applyGravity(nearby);
   updateEndlessRespawns();
@@ -159,6 +164,7 @@ function getPlayerCooldown(baseCooldown) {
 }
 
 function drawScore() {
+  if (touchLayout) return; // The touch header renders legible stats at the screen's actual size.
   push();
   noStroke(); fill(255, 255, 255, 235); rect(16, 16, 660, 84, 10);
   textFont("Trebuchet MS"); textAlign(LEFT, BASELINE);
@@ -347,9 +353,9 @@ function drawIntroScreen() {
     text(I18n.t(`difficulty.${difficulty.toLowerCase()}`), x + 54, 519);
   }
   fill("#233747"); textSize(29);
-  text(I18n.t("screen.start"), 86, 599);
+  text(I18n.t(touchLayout ? "touch.canvasStart" : "screen.start"), 86, 599);
   fill("#526d7d"); textSize(21);
-  text(I18n.t("screen.difficulty"), 86, 640);
+  text(I18n.t(touchLayout ? "touch.canvasDifficulty" : "screen.difficulty"), 86, 640);
   pop();
   timerStart = millis();
   if (resetMageRequested) startNewGame();
@@ -371,14 +377,14 @@ function drawLevelScreen() {
 }
 
 function drawVictoryScreen() {
-  drawEndScreen(I18n.t("screen.win"), I18n.t("screen.earned", { value: coinScore }), I18n.t("screen.restart"));
+  drawEndScreen(I18n.t("screen.win"), I18n.t("screen.earned", { value: coinScore }), I18n.t(touchLayout ? "touch.canvasAgain" : "screen.restart"));
   push(); textAlign(LEFT, BASELINE); textFont("Trebuchet MS"); fill("#526d7d"); textSize(23);
-  text(I18n.t(customMap ? "screen.mapComplete" : "screen.endless"), 86, 623, 640, 70);
+  text(I18n.t(customMap ? "screen.mapComplete" : touchLayout ? "touch.canvasEndless" : "screen.endless"), 86, 623, 640, 70);
   pop();
 }
 
 function drawLoseScreen() {
-  drawEndScreen(I18n.t("screen.lose"), I18n.t("screen.noCoins"), I18n.t("screen.restart"));
+  drawEndScreen(I18n.t("screen.lose"), I18n.t("screen.noCoins"), I18n.t(touchLayout ? "touch.canvasAgain" : "screen.restart"));
 }
 
 function drawEndScreen(title, subtitle, prompt) {
@@ -387,7 +393,7 @@ function drawEndScreen(title, subtitle, prompt) {
   textAlign(LEFT, BASELINE); textFont("Trebuchet MS");
   fill("#233747"); textStyle(BOLD); textSize(78); text(title, 86, 255);
   textStyle(NORMAL); fill("#526d7d"); textSize(30); text(subtitle, 86, 322);
-  textSize(24); text(I18n.t("screen.chooseDifficulty"), 86, 418);
+  textSize(24); text(I18n.t(touchLayout ? "touch.canvasDifficulty" : "screen.chooseDifficulty"), 86, 418);
   text(I18n.t("screen.selected", { value: getDifficultyName() }), 86, 465);
   fill("#305be8"); textSize(34); text(prompt, 86, 565);
   pop();
@@ -410,6 +416,7 @@ function startNewGame() {
 
 function startEndlessMode() {
   if (customMap) return;
+  clearInputState();
   endlessMode = true;
   mapNumber = MAP_COUNT;
   timerStart = millis();
@@ -484,8 +491,33 @@ function updateEndlessRespawns() {
   });
 }
 
+function hasTouchAction(action) {
+  return [...touchActions.values()].includes(action);
+}
+
+function pressTouchAction(action, pointer) {
+  if (!gameReady || editorActive || state !== GameState.PLAYING || !["left", "right", "jump", "shoot", "sprint"].includes(action)) return false;
+  if (touchActions.has(pointer)) return false;
+  touchActions.set(pointer, action);
+  if (action === "left" || action === "right") mage.facingRight = action === "right";
+  if (action === "jump") jumpQueued = true;
+  else if (action === "shoot") mage.shootWater();
+  else if (action === "sprint") mage.triggerSprint();
+  return true;
+}
+
+function releaseTouchAction(pointer) { touchActions.delete(pointer); }
+
+function returnToMenu() {
+  state = GameState.START;
+  resetMageRequested = false;
+  clearInputState();
+}
+
 function clearInputState() {
   heldKeys.clear();
+  touchActions.clear();
+  if (typeof TouchUI !== "undefined") TouchUI.clear();
   jumpQueued = false;
   if (mage) mage.xVelocity = 0;
 }
@@ -501,9 +533,7 @@ function handleKeyDown(event) {
   if (code === "ArrowUp" && !wasHeld) jumpQueued = true;
   else if (code === "KeyZ" && !event.repeat) mage.triggerSprint();
   else if (code === "KeyR" && !event.repeat && state === GameState.PLAYING) {
-    state = GameState.START;
-    resetMageRequested = false;
-    clearInputState();
+    returnToMenu();
   }
   else if (code === "KeyE" && !event.repeat && state === GameState.VICTORY) startEndlessMode();
   else if (code === "Digit1" && ![GameState.PLAYING, GameState.LOADING].includes(state)) selectedDifficulty = Difficulty.EASY;
@@ -576,8 +606,8 @@ class Mage extends Character {
     if (this.isSprinting()) { this.xVelocity = this.facingRight ? this.sprintSpeed : -this.sprintSpeed; return; }
     this.xVelocity = 0;
     const moveSpeed = getPlayerMoveSpeed();
-    if (heldKeys.has("ArrowLeft")) { this.xVelocity -= moveSpeed; this.facingRight = false; }
-    if (heldKeys.has("ArrowRight")) { this.xVelocity += moveSpeed; this.facingRight = true; }
+    if (heldKeys.has("ArrowLeft") || hasTouchAction("left")) { this.xVelocity -= moveSpeed; this.facingRight = false; }
+    if (heldKeys.has("ArrowRight") || hasTouchAction("right")) { this.xVelocity += moveSpeed; this.facingRight = true; }
     if (shouldJump) this.jump();
   }
   display() {
@@ -598,8 +628,8 @@ class Mage extends Character {
   isSprinting() { return frameCount - this.sprintStartFrame < this.sprintDurationFrames; }
   triggerSprint() {
     if (this.isSprinting() || frameCount - this.lastSprintFrame < getPlayerCooldown(BASE_SPRINT_COOLDOWN)) return;
-    if (heldKeys.has("ArrowLeft")) this.facingRight = false;
-    else if (heldKeys.has("ArrowRight")) this.facingRight = true;
+    if (heldKeys.has("ArrowLeft") || hasTouchAction("left")) this.facingRight = false;
+    else if (heldKeys.has("ArrowRight") || hasTouchAction("right")) this.facingRight = true;
     this.sprintStartFrame = this.lastSprintFrame = frameCount;
   }
   resetSprintState() { this.sprintStartFrame = -this.sprintDurationFrames; this.lastSprintFrame = -getPlayerCooldown(BASE_SPRINT_COOLDOWN); }

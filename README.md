@@ -63,9 +63,9 @@ Original Processing project by the repository owner. The unused `mario-theme.mp3
 3. 点击 **试玩地图** 进入关卡，点击 **返回编辑** 继续修改。碰到终点宝石即可通关，空格会重新开始当前地图。
 4. 点击 **导出 CSV** 保存地图。其他玩家可以在网站顶部点击 **导入 CSV 游玩**，选择这个文件直接游玩；编辑器内的 **导入 CSV** 可载入文件继续修改。
 
-支持画笔、橡皮、连通区域填充、撤销 / 重做、网格开关、缩放、内置关卡改编和自定义尺寸。默认缩放会显示完整地图；放大后滚动查看。新建或导入地图后可撤销回到前一张地图。草稿自动保存在当前浏览器，建议导出 CSV 长期保存或分享。CSV 只在浏览器中读取，不会上传到服务器。
+支持画笔、橡皮、连通区域填充、撤销 / 重做、网格开关、缩放、内置关卡改编和自定义尺寸。桌面默认显示完整地图；手机默认使用 100% 缩放，便于准确绘制，也可以选择「适应地图」查看全图。新建或导入地图后可撤销回到前一张地图。草稿自动保存在当前浏览器，建议导出 CSV 长期保存或分享。CSV 只在浏览器中读取，不会上传到服务器。
 
-快捷键：**B** 画笔、**E** 橡皮、**G** 填充、**Ctrl / ⌘ Z** 撤销、**Ctrl / ⌘ Shift Z** 重做、**Ctrl / ⌘ S** 导出。右键可临时擦除。聚焦画布后，可用方向键移动光标、空格或 Enter 放置、Delete 擦除。触屏支持拖动绘制，地图外侧的滚动条用于移动视野。
+快捷键：**B** 画笔、**E** 橡皮、**G** 填充、**H** 移动画布、**Ctrl / ⌘ Z** 撤销、**Ctrl / ⌘ Shift Z** 重做、**Ctrl / ⌘ S** 导出。右键可临时擦除。聚焦画布后，可用方向键移动光标、空格或 Enter 放置、Delete 擦除。触屏支持拖动绘制；选择「移动」后拖动画布可以移动视野，选择素材后会返回画笔。
 
 CSV 无表头，每行对应地图的一行，每个单元格对应一格。编码仅用于文件保存，编辑器直接显示游戏贴图：
 
@@ -99,10 +99,19 @@ node --test tests/*.test.js
 
 点击游戏上方的 **⛶ 全屏**，按原来的 **1500:800** 比例放大到整个屏幕。全屏模式隐藏外围导航、工具栏和反馈栏，保留右上角的 **退出全屏** 按钮；也可按 **Esc** 退出。切换不会重新开始关卡或清空进度。普通模式也恢复较大的画布显示，不再按工具栏高度缩小。
 
-不支持或未允许系统全屏的浏览器会使用窗口全屏，按钮显示 **退出窗口全屏**。竖屏和横屏都保持比例，剩余区域留黑边。
+不支持或未允许系统全屏的浏览器会使用窗口全屏，按钮显示 **退出窗口全屏**。竖屏和横屏都保持比例；触屏模式用浅蓝色留白容纳操作按钮。
 
 ## Languages / 语言
 
 The interface defaults to **English**. Use the **English / 中文** selector in the bottom-left corner to switch instantly. The choice is saved on this browser and shared between the two GitHub Pages sites. Menus, the map editor, validation messages, game HUD, end screens, and fullscreen controls follow the selected language. Changing language preserves the map, undo history, and current game. Map names and CSV tile codes are never translated.
 
 界面默认英文，可通过左下角 **English / 中文** 切换并记住选择。切换不会重置地图或游戏进度；地图名称和 CSV 编码保持不变。
+
+
+## Mobile / 手机操作
+
+Touch controls appear on small screens and devices with a coarse pointer. Hold Left or Right to move, tap Jump or Sprint, and hold Water to fire at the normal cooldown. Multiple fingers can move and use a skill together. Choose difficulty and start/replay from the touch menu; the classic victory screen also offers Endless mode.
+
+Rotate to landscape and select **Fullscreen** for a larger playfield. Controls sit beside the canvas in landscape fullscreen and below it in portrait. The game keeps its 1500 × 800 proportions and preserves progress when rotating or leaving fullscreen. Unsupported native fullscreen falls back to filling the browser window.
+
+手机可同时按住移动键和跳跃 / 水弹 / 冲刺，长按水弹会按原有冷却连续发射。横屏全屏时，按键位于画面两侧；竖屏时按键在画面下方。金币、等级、经验与技能冷却以适合手机的尺寸显示。编辑器支持横向选择素材、拖动绘制、「移动」工具拖动画布、缩放、撤销，以及原有的 CSV 导入导出。

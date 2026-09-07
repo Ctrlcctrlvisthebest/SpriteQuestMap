@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" data-i18n-content="page.description" content="SpriteQuest — a pixel adventure and map editor. Paint terrain, import CSV maps, and play your own levels." />
     <title data-i18n="page.title">SpriteQuest · Map Workshop</title>
-    <link rel="stylesheet" href="style.css?v=8" />
+    <link rel="stylesheet" href="style.css?v=9" />
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/p5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/addons/p5.sound.min.js"></script>
   </head>
@@ -18,7 +18,29 @@
     <div class="site-content">
     <section id="game-view" aria-label="Game" data-i18n-aria-label="game.region">
       <div class="game-bar"><div class="game-map-label"><img src="assets/gem1.png" alt="" /><span id="game-map-name" data-i18n="game.classic">Classic adventure · 4 levels</span></div><div class="button-row"><button id="back-editor" class="button small" hidden data-i18n="game.backEditor">Back to editor</button><button id="classic-game" class="button small" hidden data-i18n="game.classicButton">Classic levels</button><button id="restart-game" class="button small primary" disabled data-i18n="game.restart">Start / restart</button><button id="game-fullscreen" class="button small" aria-controls="game-shell" aria-pressed="false" data-i18n="fullscreen.enter">⛶ Fullscreen</button></div></div>
-      <main id="game-shell" aria-label="SpriteQuest game canvas" data-i18n-aria-label="game.canvas" tabindex="-1"><button id="exit-fullscreen" class="button fullscreen-exit" hidden data-i18n="fullscreen.exit">Exit fullscreen · Esc</button></main>
+      <main id="game-shell" aria-label="SpriteQuest game canvas" data-i18n-aria-label="game.canvas" tabindex="-1"><button id="exit-fullscreen" class="button fullscreen-exit" hidden data-i18n="fullscreen.exit">Exit fullscreen · Esc</button>
+        <div class="touch-only touch-header">
+          <div id="touch-status" class="touch-status" role="status" aria-live="off"></div>
+          <button id="touch-menu" class="button small" hidden data-i18n="controls.menuLabel">Main menu</button>
+        </div>
+        <div id="touch-launch" class="touch-only touch-launch">
+          <label><span data-i18n="touch.difficulty">Difficulty</span><select id="touch-difficulty"><option value="EASY" data-i18n="difficulty.easy">Easy</option><option value="NORMAL" selected data-i18n="difficulty.normal">Normal</option><option value="HARD" data-i18n="difficulty.hard">Hard</option></select></label>
+          <button id="touch-start" class="button primary" disabled data-i18n="touch.start">Start adventure</button>
+          <button id="touch-endless" class="button" hidden data-i18n="touch.endless">Endless mode</button>
+        </div>
+        <div id="touch-controls" class="touch-only touch-controls" role="group" aria-label="Touch controls" data-i18n-aria-label="touch.controls" hidden>
+          <div class="touch-movement">
+            <button class="touch-button" data-action="left" aria-label="Move left" data-i18n-aria-label="touch.left"><span class="touch-icon" aria-hidden="true">←</span><span data-i18n="touch.leftShort">Left</span></button>
+            <button class="touch-button" data-action="right" aria-label="Move right" data-i18n-aria-label="touch.right"><span class="touch-icon" aria-hidden="true">→</span><span data-i18n="touch.rightShort">Right</span></button>
+          </div>
+          <div class="touch-actions">
+            <button class="touch-button" data-action="sprint"><span class="touch-icon" aria-hidden="true">»</span><span data-i18n="controls.sprintLabel">Sprint</span><span class="touch-cooldown" aria-hidden="true"></span></button>
+            <button class="touch-button" data-action="shoot"><svg class="touch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3C9 8 5 11 5 15a7 7 0 0 0 14 0c0-4-4-7-7-12Z"/><path d="M8 15a4 4 0 0 0 4 4"/></svg><span data-i18n="hud.shot">Water</span><span class="touch-cooldown" aria-hidden="true"></span></button>
+            <button class="touch-button touch-jump" data-action="jump"><span class="touch-icon" aria-hidden="true">↑</span><span data-i18n="controls.jumpLabel">Jump</span></button>
+          </div>
+        </div>
+      </main>
+      <p class="touch-only touch-hint" data-i18n="touch.hint">Hold an arrow to move; tap Jump, Water or Sprint. Rotate your phone and enter fullscreen for a larger view.</p>
       <div class="game-help" aria-label="Keyboard controls" data-i18n-aria-label="controls.label">
         <span><kbd>← →</kbd><span data-i18n="controls.moveLabel">Move</span></span>
         <span><kbd>↑</kbd><span data-i18n="controls.jumpLabel">Jump</span></span>
@@ -40,10 +62,11 @@
         </aside>
         <div class="map-workspace">
           <div class="editor-tools">
-            <div class="tool-group" aria-label="Drawing tools" data-i18n-aria-label="editor.tools"><button class="tool-button active" data-tool="paint" title="Brush (B)" data-i18n-title="tool.paintTip" aria-pressed="true">✎ <span data-i18n="tool.paint">Brush</span></button><button class="tool-button" data-tool="erase" title="Eraser (E)" data-i18n-title="tool.eraseTip" aria-pressed="false">⌫ <span data-i18n="tool.erase">Eraser</span></button><button class="tool-button" data-tool="fill" title="Fill (G)" data-i18n-title="tool.fillTip" aria-pressed="false">▨ <span data-i18n="tool.fill">Fill</span></button></div>
+            <div class="tool-group" aria-label="Drawing tools" data-i18n-aria-label="editor.tools"><button class="tool-button active" data-tool="paint" title="Brush (B)" data-i18n-title="tool.paintTip" aria-pressed="true">✎ <span data-i18n="tool.paint">Brush</span></button><button class="tool-button" data-tool="erase" title="Eraser (E)" data-i18n-title="tool.eraseTip" aria-pressed="false">⌫ <span data-i18n="tool.erase">Eraser</span></button><button class="tool-button" data-tool="fill" title="Fill (G)" data-i18n-title="tool.fillTip" aria-pressed="false">▨ <span data-i18n="tool.fill">Fill</span></button><button class="tool-button" data-tool="pan" title="Pan (H)" data-i18n-title="tool.panTip" aria-pressed="false">✥ <span data-i18n="tool.pan">Pan</span></button></div>
             <div class="tool-group"><button id="editor-undo" class="tool-button" title="Undo (Ctrl / ⌘ Z)" data-i18n-title="tool.undoTip" aria-label="Undo" data-i18n-aria-label="tool.undo" disabled>↶</button><button id="editor-redo" class="tool-button" title="Redo (Ctrl / ⌘ Shift Z)" data-i18n-title="tool.redoTip" aria-label="Redo" data-i18n-aria-label="tool.redo" disabled>↷</button></div>
             <div class="view-tools"><label><input id="show-grid" type="checkbox" checked /> <span data-i18n="editor.grid">Grid</span></label><label><span data-i18n="editor.zoom">Zoom</span> <select id="editor-zoom"><option value="fit" selected data-i18n="editor.fit">Fit map</option><option value="16">50%</option><option value="24">75%</option><option value="32">100%</option><option value="40">125%</option></select></label></div>
           </div>
+          <p class="touch-only editor-touch-hint" data-i18n="editor.touchHelp">Drag to paint. Select Pan to move the map; use Zoom for larger tiles.</p>
           <div id="map-viewport" class="map-viewport"><canvas id="editor-canvas" tabindex="0" aria-label="Map canvas: select a tile, then click or drag to paint. Use arrow keys to move the cursor and Space to place a tile." data-i18n-aria-label="editor.canvas"></canvas></div>
           <div class="canvas-footer"><span id="map-size"></span><span id="cursor-position" data-i18n="editor.paintHelp">Click or drag to paint · Right-click to erase · Scroll to explore</span><span id="draft-status" data-i18n="draft.local">Local draft</span></div>
           <div class="map-settings">
@@ -67,10 +90,11 @@
     </div>
     <input id="csv-file" type="file" accept=".csv,text/csv" hidden />
     <div id="app-message" role="status" aria-live="polite" hidden><span></span><button aria-label="Dismiss message" data-i18n-aria-label="closeMessage">×</button></div>
-    <script src="i18n.js?v=3"></script>
+    <script src="i18n.js?v=4"></script>
     <script src="map-format.js?v=2"></script>
-    <script src="sketch.js?v=12"></script>
-    <script src="editor.js?v=3"></script>
-    <script src="fullscreen.js?v=2"></script>
+    <script src="sketch.js?v=13"></script>
+    <script src="editor.js?v=4"></script>
+    <script src="touch.js?v=1"></script>
+    <script src="fullscreen.js?v=3"></script>
   </body>
 </html>
